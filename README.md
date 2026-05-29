@@ -8,9 +8,19 @@
 
 ## Quick start
 
+### 前置
+- **Windows**（必要：`detect-host.ps1` / `flash-window.ps1` / `focus-window.ps1` 用 PowerShell + Win32 API；Mac / Linux 跑不起來）
+- **Node.js ≥ 20**（`node --version` 確認；用了 `node --watch` 與多處 optional chaining）
+- **Claude Code 本體已安裝且至少跑過一次** —— dashboard 讀的是 `~/.claude/sessions/` 與 `~/.claude/projects/`，沒這個就是空白頁面（不會 crash，但你會以為它壞了）
+
+### 安裝 & 啟動
+
 ```bash
+git clone https://github.com/Sisoll/claude_mgmt_dashboard.git
+cd claude_mgmt_dashboard/server
+
 # 1. 裝 dep（只有一個：ws）
-cd server && npm install
+npm install
 
 # 2. 啟動
 node index.js
