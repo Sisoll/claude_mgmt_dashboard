@@ -8,9 +8,18 @@ yarn-error.log
 .claude/
 
 # IDE / editor
+# IntelliJ / JetBrains
 .idea/
+*.iml
+out/
+# VSCode
 .vscode/
+*.code-workspace
+# Visual Studio
 .vs/
+*.suo
+*.user
+# vim / emacs / general
 *.swp
 *.swo
 *~
