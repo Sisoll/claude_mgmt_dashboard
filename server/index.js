@@ -1,0 +1,350 @@
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { WebSocketServer } = require('ws');
+
+const os = require('os');
+const { SessionRegistry, isAlive } = require('./lib/sessions');
+const { JsonlTailer } = require('./lib/jsonl-tail');
+const { SessionState } = require('./lib/parse-state');
+const sidecar = require('./lib/sidecar');
+const { flashWindowForPid, focusWindowForPid } = require('./lib/win-helpers');
+const { getQuotas, readCtxRemainForSession } = require('./lib/usage');
+
+const PORT = Number(process.env.PORT || 7878);
+const HOST = '127.0.0.1';
+const DASHBOARD_HTML = path.resolve(__dirname, '..', 'Claude_Sessions_Dashboard.html');
+
+const registry = new SessionRegistry();
+const tailers = new Map();
+const states = new Map();
+const wsClients = new Set();
+const pushTimers = new Map();
+const PUSH_DEBOUNCE_MS = 120;
+
+function attach(meta) {
+  if (states.has(meta.sid)) return;
+  // If this sid replaces a previous one for the same pid (post /clear), migrate
+  // the user's preferences (rename, collapsed) so they survive the rotation.
+  if (meta.previousSid) {
+    sidecar.migrate(meta.previousSid, meta.sid);
+  }
+  const st = new SessionState(meta);
+  states.set(meta.sid, st);
+
+  const tailer = new JsonlTailer(meta.jsonlPath);
+  tailer.on('lines', (lines) => {
+    st.ingest(lines);
+    schedulePush(meta.sid);
+  });
+  tailer.on('error', () => {});
+  tailer.start();
+  tailers.set(meta.sid, tailer);
+
+  setTimeout(() => schedulePush(meta.sid), 50);
+}
+
+function detach(sid) {
+  const tailer = tailers.get(sid);
+  if (tailer) {
+    tailer.stop();
+    tailers.delete(sid);
+  }
+  states.delete(sid);
+  if (pushTimers.has(sid)) {
+    clearTimeout(pushTimers.get(sid));
+    pushTimers.delete(sid);
+  }
+  broadcast({ type: 'remove', sid });
+}
+
+function snapshotFor(sid) {
+  const st = states.get(sid);
+  if (!st) return null;
+  const snap = st.toSnapshot();
+  const meta = sidecar.read(sid);
+  if (meta.name) snap.name = meta.name;
+  if (typeof meta.collapsed === 'boolean') snap.collapsed = meta.collapsed;
+  if (typeof meta.viewedSince === 'number') snap.viewedSince = meta.viewedSince;
+  if (meta.aiSummary) snap.aiSummary = meta.aiSummary;
+  if (!snap.name) snap.name = deriveAutoName(snap);
+  const ctx = readCtxRemainForSession(sid);
+  if (ctx) snap.ctxRemainPct = ctx.value;
+
+  // Manual status override (mark done / etc.) — valid only while no new JSONL activity has happened since.
+  if (meta.manualStatus && meta.manualStatusAt && meta.manualStatusAt > (snap.lastActivity || 0)) {
+    snap.computedStatus = snap.status;
+    snap.status = meta.manualStatus;
+    snap.statusOverridden = true;
+  }
+  return snap;
+}
+
+// Track last broadcast status per sid so server can fire auto-actions (taskbar flash, etc.) on transitions.
+const lastBroadcastStatus = new Map();
+
+// Sweep ~/.claude for orphaned artifacts left by dead Claude sessions:
+//   - <pid>.json markers whose pid is no longer alive
+//   - statusline_<sid>_{5h,7d,ctx}.tmp files for sids not in the current alive set
+//   - <sid>.waiting.flag / <sid>.stop.flag for sids not currently alive
+// Intentionally does NOT touch *.dashboard.json (user's rename / collapse state
+// is precious and may want to be preserved for sessions that are paused / closed).
+function cleanupStaleFiles() {
+  const CLAUDE_DIR = path.join(os.homedir(), '.claude');
+  const SESSIONS_DIR = path.join(CLAUDE_DIR, 'sessions');
+  const aliveSids = new Set();
+  for (const e of registry.alive.values()) {
+    if (e.sid) aliveSids.add(e.sid);
+    if (e.markerSid) aliveSids.add(e.markerSid);
+  }
+  const deleted = [];
+  const errors = [];
+  const tryDel = (full, label) => {
+    try { fs.unlinkSync(full); deleted.push(label); }
+    catch (e) { errors.push(label + ': ' + e.message); }
+  };
+
+  // statusline_<sid>_(5h|7d|ctx).tmp in ~/.claude
+  try {
+    for (const f of fs.readdirSync(CLAUDE_DIR)) {
+      const m = f.match(/^statusline_(.+?)_(5h|7d|ctx)\.tmp$/);
+      if (m && !aliveSids.has(m[1])) tryDel(path.join(CLAUDE_DIR, f), f);
+    }
+  } catch {}
+
+  // <pid>.json markers + flag files in ~/.claude/sessions
+  try {
+    for (const f of fs.readdirSync(SESSIONS_DIR)) {
+      // dead-pid marker
+      const pm = f.match(/^(\d+)\.json$/);
+      if (pm) {
+        const pid = Number(pm[1]);
+        if (!isAlive(pid)) tryDel(path.join(SESSIONS_DIR, f), f);
+        continue;
+      }
+      // orphan flag files (waiting / stop)
+      const ff = f.match(/^(.+?)\.(waiting|stop)\.flag$/);
+      if (ff && !aliveSids.has(ff[1])) {
+        tryDel(path.join(SESSIONS_DIR, f), f);
+      }
+    }
+  } catch {}
+
+  return { ok: true, deletedCount: deleted.length, deleted, errors };
+}
+
+// Hard refresh — drop all in-memory caches (sessions, tailers, host detection,
+// JSONL offsets), then re-scan from scratch. Used by the topbar refresh button.
+function forceFullRefresh() {
+  const before = states.size;
+  for (const sid of Array.from(states.keys())) detach(sid);
+  registry.alive.clear();
+  registry.pidJsonl.clear();
+  lastBroadcastStatus.clear();
+  registry._scan();
+  setTimeout(() => broadcast(fullSnapshot()), 350);
+  return { ok: true, sessionsBefore: before, sessionsAfter: states.size };
+}
+
+function handleStatusTransition(sid, prev, next) {
+  if (prev === undefined) return; // initial observation; skip
+  if (prev === next) return;
+  if (next === 'waiting') {
+    const meta = registry.alive.get(sid);
+    if (meta) {
+      flashWindowForPid(meta.pid, leafOfCwd(meta.cwd)).catch(() => {});
+    }
+  }
+}
+
+function leafOfCwd(cwd) {
+  if (!cwd) return '';
+  const parts = cwd.replace(/\\/g, '/').split('/').filter(Boolean);
+  return parts[parts.length - 1] || '';
+}
+
+function deriveAutoName(snap) {
+  const src = snap.firstPrompt?.text || snap.prompt?.text;
+  if (src) {
+    const t = src.trim().replace(/\s+/g, ' ');
+    return t.length > 60 ? t.slice(0, 60) + '…' : t;
+  }
+  return path.basename(snap.cwd || '') || snap.sid.slice(0, 8);
+}
+
+function schedulePush(sid) {
+  if (pushTimers.has(sid)) return;
+  const timer = setTimeout(() => {
+    pushTimers.delete(sid);
+    const snap = snapshotFor(sid);
+    if (snap) {
+      const prev = lastBroadcastStatus.get(sid);
+      lastBroadcastStatus.set(sid, snap.status);
+      handleStatusTransition(sid, prev, snap.status);
+      broadcast({ type: 'update', session: snap });
+    }
+  }, PUSH_DEBOUNCE_MS);
+  pushTimers.set(sid, timer);
+}
+
+function broadcast(msg) {
+  const json = JSON.stringify(msg);
+  for (const ws of wsClients) {
+    if (ws.readyState === 1) {
+      try { ws.send(json); } catch {}
+    }
+  }
+}
+
+function fullSnapshot() {
+  return {
+    type: 'snapshot',
+    sessions: Array.from(states.keys()).map(snapshotFor).filter(Boolean),
+  };
+}
+
+registry.on('added', (meta) => attach(meta));
+registry.on('changed', (meta) => { detach(meta.sid); attach(meta); });
+registry.on('removed', (meta) => detach(meta.sid));
+// Late-arriving host detection: update the running SessionState's meta in place
+// so the next snapshot reflects the new hostLabel (e.g. 'IntelliJ' instead of
+// the entrypoint-fallback 'Terminal'), and push immediately.
+registry.on('metaUpdated', (meta) => {
+  const st = states.get(meta.sid);
+  if (!st) return;
+  st.meta = meta;
+  schedulePush(meta.sid);
+});
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/dashboard')) {
+    try {
+      const html = fs.readFileSync(DASHBOARD_HTML, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+    } catch (err) {
+      res.writeHead(500); res.end('dashboard html not found: ' + err.message);
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/sessions') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(fullSnapshot()));
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/usage') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(getQuotas()));
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/refresh') {
+    const result = forceFullRefresh();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(result));
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/cleanup') {
+    const result = cleanupStaleFiles();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(result));
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname.startsWith('/api/sessions/')) {
+    const parts = url.pathname.split('/');
+    const sid = parts[3];
+    const action = parts[4];
+    let body = '';
+    req.on('data', (c) => { body += c.toString(); });
+    req.on('end', async () => {
+      let payload = {};
+      try { payload = JSON.parse(body || '{}'); } catch {}
+      try {
+        const result = await handleAction(sid, action, payload);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  res.writeHead(404); res.end('not found');
+});
+
+async function handleAction(sid, action, payload) {
+  const meta = registry.alive.get(sid);
+  if (!meta && action !== 'rename' && action !== 'setCollapsed') {
+    throw new Error('session not alive');
+  }
+
+  switch (action) {
+    case 'rename':
+      sidecar.patch(sid, { name: String(payload.name || '').slice(0, 200) });
+      schedulePush(sid);
+      return { ok: true };
+    case 'setCollapsed':
+      sidecar.patch(sid, { collapsed: !!payload.collapsed });
+      return { ok: true };
+    case 'focus':
+      if (!meta) throw new Error('session not alive');
+      return await focusWindowForPid(meta.pid, leafOfCwd(meta.cwd));
+    case 'flash':
+      if (!meta) throw new Error('session not alive');
+      return await flashWindowForPid(meta.pid, leafOfCwd(meta.cwd));
+    case 'terminate':
+      if (!meta) throw new Error('session not alive');
+      try { process.kill(meta.pid, 'SIGTERM'); return { ok: true }; }
+      catch (e) { throw new Error('kill failed: ' + e.message); }
+    default:
+      throw new Error('unknown action: ' + action);
+  }
+}
+
+const wss = new WebSocketServer({ server });
+wss.on('connection', (ws) => {
+  wsClients.add(ws);
+  try { ws.send(JSON.stringify(fullSnapshot())); } catch {}
+
+  ws.on('message', (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw.toString()); } catch { return; }
+    if (msg.type === 'rename' && msg.sid) {
+      sidecar.patch(msg.sid, { name: String(msg.name || '').slice(0, 200) });
+      schedulePush(msg.sid);
+    } else if (msg.type === 'setCollapsed' && msg.sid) {
+      sidecar.patch(msg.sid, { collapsed: !!msg.collapsed });
+    } else if (msg.type === 'setViewedSince' && msg.sid) {
+      sidecar.patch(msg.sid, { viewedSince: Number(msg.viewedSince) || 0 });
+      schedulePush(msg.sid);
+    } else if (msg.type === 'markStatus' && msg.sid && ['completed','waiting','failed','running'].includes(msg.status)) {
+      sidecar.patch(msg.sid, { manualStatus: msg.status, manualStatusAt: Date.now() });
+      schedulePush(msg.sid);
+    } else if (msg.type === 'clearManualStatus' && msg.sid) {
+      sidecar.patch(msg.sid, { manualStatus: null, manualStatusAt: null });
+      schedulePush(msg.sid);
+    }
+  });
+
+  ws.on('close', () => wsClients.delete(ws));
+  ws.on('error', () => wsClients.delete(ws));
+});
+
+server.listen(PORT, HOST, () => {
+  console.log(`[claude-mgmt] dashboard server listening on http://${HOST}:${PORT}`);
+  registry.start();
+});
+
+process.on('SIGINT', () => {
+  registry.stop();
+  for (const t of tailers.values()) t.stop();
+  server.close(() => process.exit(0));
+});

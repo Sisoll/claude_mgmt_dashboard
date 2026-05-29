@@ -1,0 +1,32 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log
+
+# Claude Code per-project state (machine-specific paths, personal handoffs, etc.)
+# CLAUDE.md at repo root is intentionally tracked; everything under .claude/ is not.
+.claude/
+
+# IDE / editor
+.idea/
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Env / secrets
+.env
+.env.*
+
+# Debug / scratch
+.tmp-*
+*.tmp.json
