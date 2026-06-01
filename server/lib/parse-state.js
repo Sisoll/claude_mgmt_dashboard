@@ -78,11 +78,20 @@ class SessionState {
   constructor(meta) {
     this.meta = meta;
     this.openToolUses = new Map();
+    // tool_use_id → result item, for results that arrive BEFORE their tool_use
+    // (JSONL events are sometimes written out of order). Lets _openToolUse know a
+    // tool is already resolved so it doesn't linger as a phantom "open" tool.
+    this.toolResults = new Map();
     this.subAgents = new Map();
     this.firstUserPrompt = null;
     this.lastUserPrompt = null;
     this.lastAssistant = null;
     this.lastEventTs = null;
+    // Earliest event ts in THIS jsonl = start of the current conversation. After
+    // /clear a fresh jsonl (new SessionState) is created, so this resets — unlike
+    // the pid marker's startedAt, which keeps the whole process lifetime. Runtime
+    // is derived from this so a cleared session doesn't show a 72h runtime.
+    this.firstEventTs = null;
     this.tokens = { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
     this.gitBranch = null;
     this.lastError = null;
@@ -102,6 +111,7 @@ class SessionState {
   _handle(o) {
     const ts = o.timestamp ? Date.parse(o.timestamp) : null;
     if (ts) this.lastEventTs = Math.max(this.lastEventTs || 0, ts);
+    if (ts) this.firstEventTs = this.firstEventTs ? Math.min(this.firstEventTs, ts) : ts;
     if (o.gitBranch) this.gitBranch = o.gitBranch;
     if (o.permissionMode) this.permissionMode = o.permissionMode;
     if (o.type === 'permission-mode' && o.permissionMode) this.permissionMode = o.permissionMode;
@@ -168,23 +178,30 @@ class SessionState {
   }
 
   _openToolUse(tu, ts) {
-    const entry = {
-      id: tu.id,
-      name: tu.name,
-      input: tu.input || {},
-      startedAt: ts,
-      status: 'running',
-    };
-    this.openToolUses.set(tu.id, entry);
+    // If this tool's result was already seen (out-of-order JSONL), the tool is
+    // already done — record it as resolved instead of leaving it "open" forever.
+    const earlyResult = this.toolResults.get(tu.id);
+    const doneStatus = earlyResult ? (earlyResult.is_error ? 'failed' : 'completed') : 'running';
+    if (!earlyResult) {
+      this.openToolUses.set(tu.id, {
+        id: tu.id,
+        name: tu.name,
+        input: tu.input || {},
+        startedAt: ts,
+        status: 'running',
+      });
+    }
     if (tu.name === 'Task' || tu.name === 'Agent') {
       this.subAgents.set(tu.id, {
         id: tu.id,
         name: tu.input?.subagent_type || 'agent',
         description: tu.input?.description || '',
-        status: 'running',
+        status: doneStatus,
         startedAt: ts,
+        endedAt: earlyResult ? ts : undefined,
       });
     }
+    if (earlyResult) this.toolResults.delete(tu.id);
   }
 
   _closeToolUse(result) {
@@ -194,6 +211,10 @@ class SessionState {
       open.status = result.is_error ? 'failed' : 'completed';
       open.endedAt = Date.now();
       this.openToolUses.delete(id);
+    } else {
+      // Result arrived before its tool_use line (out-of-order JSONL) — stash it so
+      // the upcoming _openToolUse resolves the tool instead of leaving it open.
+      this.toolResults.set(id, result);
     }
     const sub = this.subAgents.get(id);
     if (sub) {
@@ -209,21 +230,38 @@ class SessionState {
   }
 
   computeStatus() {
-    // Highest priority: Notification hook flag (catches Windows desktop notification events).
+    const last = this.lastAssistant;
+    // A clean end_turn means the model finished its turn. Notifications that arrive
+    // *after* that are Claude Code's idle "Claude is waiting for your input" reminder
+    // (fires ~60s after the turn ends) — NOT a permission prompt — so they must not
+    // override an explicit 【完成】/【待決】/【失敗】 tag. Real permission prompts only
+    // fire mid-turn (stop_reason 'tool_use' / an open tool), where the flag below is
+    // still authoritative. Without this gate a finished session flips to 待處理 ~60s
+    // after it completes.
+    const cleanlyEnded = !!last && last.stopReason === 'end_turn';
+
+    // Notification hook flag (catches OS-level permission prompts the model can't tag).
     const flag = readWaitingFlag(this.meta.sid);
-    if (flag && flag.at && flag.at > (this.lastEventTs || 0)) {
+    if (!cleanlyEnded && flag && flag.at && flag.at > (this.lastEventTs || 0)) {
       this._waitingSource = 'notification';
       return 'waiting';
     }
     this._waitingSource = null;
 
-    if (this.openToolUses.size > 0) {
+    // A clean end_turn means no tool can still be pending — any remaining "open"
+    // tool is a parse artifact (e.g. an orphaned/out-of-order result), so don't let
+    // the stuck-tool heuristic fire. Fall through to the tag/question classification.
+    if (!cleanlyEnded && this.openToolUses.size > 0) {
       // Heuristic: if a tool has been "in flight" for more than STUCK_TOOL_MS without a
       // tool_result coming back, Claude is probably stuck on an inline permission prompt
       // (Notification hook only fires for OS-level notifications, not these).
       const STUCK_TOOL_MS = 30_000;
       let oldestStartedAt = Infinity;
       for (const tu of this.openToolUses.values()) {
+        // Sub-agents (Task/Agent) legitimately run for minutes — they're work in
+        // progress, not a permission prompt. Excluding them stops a session that's
+        // busy running sub-agents from being misread as "需要決定".
+        if (tu.name === 'Task' || tu.name === 'Agent') continue;
         if (tu.startedAt && tu.startedAt < oldestStartedAt) oldestStartedAt = tu.startedAt;
       }
       if (oldestStartedAt < Infinity && Date.now() - oldestStartedAt > STUCK_TOOL_MS) {
@@ -233,7 +271,6 @@ class SessionState {
       return 'running';
     }
 
-    const last = this.lastAssistant;
     const lastTurn = this.turns[this.turns.length - 1];
     // User just sent a prompt and assistant has not produced an answer yet → assistant is thinking
     if (lastTurn && !lastTurn.assistantSummary && (!last || (last.ts || 0) < (lastTurn.ts || 0))) {
@@ -282,7 +319,9 @@ class SessionState {
 
   toSnapshot() {
     const now = Date.now();
-    const startedAt = this.meta.startedAt;
+    // Prefer the current jsonl's first event over the marker's startedAt so runtime
+    // reflects THIS conversation (resets on /clear) rather than the whole process.
+    const startedAt = this.firstEventTs || this.meta.startedAt;
     const tokensUsed = this.tokens.cacheRead + this.tokens.cacheCreate + this.tokens.input + this.tokens.output;
     const history = this.turns.slice(-SNAPSHOT_HISTORY_TURNS).map((t) => ({
       ts: t.ts,
@@ -395,6 +434,7 @@ function labelHost(hostName, shellName) {
 function shortenModel(m) {
   if (!m) return null;
   const map = {
+    'claude-opus-4-8': 'Opus 4.8',
     'claude-opus-4-7': 'Opus 4.7',
     'claude-opus-4-6': 'Opus 4.6',
     'claude-sonnet-4-6': 'Sonnet 4.6',
@@ -402,7 +442,8 @@ function shortenModel(m) {
     'claude-haiku-4-5': 'Haiku 4.5',
   };
   for (const [k, v] of Object.entries(map)) if (m.startsWith(k)) return v;
-  return m.replace(/^claude-/, '').replace(/-/g, ' ');
+  // Fallback for unmapped models: keep the version dotted (4-8 → 4.8), not "4 8".
+  return m.replace(/^claude-/, '').replace(/-(\d+)-(\d+)/, ' $1.$2').replace(/-/g, ' ');
 }
 
 function condenseText(text) {

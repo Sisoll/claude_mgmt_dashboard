@@ -2,6 +2,14 @@ const fs = require('fs');
 const { EventEmitter } = require('events');
 
 const DEBOUNCE_MS = 150;
+// fs.watch on Windows (ReadDirectoryChangesW) silently drops change events and
+// can even fail to attach. With no fallback, a missed event freezes the session
+// — most visibly stuck on "waiting", since that's an idle terminal state nothing
+// else nudges out of. This low-frequency stat poll guarantees appended lines are
+// picked up within POLL_INTERVAL_MS regardless of the watcher. _readNew is cheap
+// when nothing grew (early-returns on size === offset) and idempotent via offset
+// tracking, so the poll and the watcher can never double-read.
+const POLL_INTERVAL_MS = 1000;
 
 class JsonlTailer extends EventEmitter {
   constructor(filePath) {
@@ -11,6 +19,7 @@ class JsonlTailer extends EventEmitter {
     this.buffer = '';
     this.watcher = null;
     this._debounceTimer = null;
+    this._pollTimer = null;
     this._reading = false;
   }
 
@@ -21,6 +30,8 @@ class JsonlTailer extends EventEmitter {
     } catch (err) {
       this.emit('error', err);
     }
+    // Safety net — runs whether or not fs.watch attached or fires (see above).
+    this._pollTimer = setInterval(() => this._readNew(), POLL_INTERVAL_MS);
   }
 
   stop() {
@@ -28,6 +39,7 @@ class JsonlTailer extends EventEmitter {
       try { this.watcher.close(); } catch {}
       this.watcher = null;
     }
+    if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
     if (this._debounceTimer) clearTimeout(this._debounceTimer);
   }
 

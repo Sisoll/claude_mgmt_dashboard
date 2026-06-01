@@ -47,6 +47,11 @@
     --error: #8a3a2a;
     --error-soft: #f1dfd8;
 
+    /* health gradient for usage bars -- green (plenty left) → amber → red (nearly out) */
+    --health-good: #4a9d5b;
+    --health-warn: #d98a2b;
+    --health-crit: #c43838;
+
     --shadow-sm: 0 1px 2px rgba(40,30,15,0.04), 0 0 0 1px rgba(40,30,15,0.04);
     --shadow-md: 0 1px 3px rgba(40,30,15,0.06), 0 4px 12px rgba(40,30,15,0.04), 0 0 0 1px rgba(40,30,15,0.05);
     --shadow-waiting: 0 0 0 1px var(--waiting), 0 0 0 4px var(--waiting-ring), 0 8px 24px rgba(196,56,56,0.12);
@@ -198,7 +203,7 @@
   .sessions {
     display: flex;
     flex-direction: column;
-    gap: 22px;
+    gap: 32px;
   }
 
   /* ============ Card ============ */
@@ -306,7 +311,7 @@
     grid-template-columns: auto 1fr auto auto;
     align-items: center;
     gap: 12px;
-    padding: 28px 18px 18px;
+    padding: 36px 18px 18px;
     cursor: pointer;
     user-select: none;
   }
@@ -337,16 +342,16 @@
   /* Folder/project name — stamped onto the card's top-left border like a file tab */
   .folder-label {
     position: absolute;
-    top: -13px;
+    top: -19px;
     left: 18px;
     z-index: 3;
     font-family: var(--font-mono);
-    font-size: 11.5px;
+    font-size: 17px;
     font-weight: 700;
     color: #fff;
     background: var(--text);
-    border-radius: 5px;
-    padding: 4px 11px;
+    border-radius: 7px;
+    padding: 6px 16px;
     line-height: 1.25;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -882,19 +887,24 @@
   .side-value.faded { color: var(--text-muted); }
 
   .token-bar {
-    height: 5px;
+    height: 9px;
     background: var(--surface-2);
     border-radius: 999px;
     overflow: hidden;
-    margin-top: 4px;
-    border: 1px solid var(--border);
+    margin-top: 5px;
+    border: 1px solid var(--border-strong);
+    box-shadow: inset 0 1px 2px rgba(40,30,15,0.05);
   }
   .token-bar .fill {
     height: 100%;
     background: var(--accent);
     border-radius: 999px;
+    transition: width 0.4s ease, background-color 0.3s ease;
   }
-  .token-bar.warn .fill { background: var(--waiting); }
+  /* health tiers — colored by how much headroom is LEFT, not how much is used */
+  .fill.health-good { background: var(--health-good); }
+  .fill.health-warn { background: var(--health-warn); }
+  .fill.health-crit { background: var(--health-crit); }
 
   /* ============ Action buttons ============ */
   .actions {
@@ -1059,15 +1069,17 @@
   .quota-value { color: var(--text); font-weight: 500; }
   .quota-reset { color: var(--text-faint); }
   .quota-bar {
-    width: 64px;
-    height: 5px;
+    width: 88px;
+    height: 8px;
     background: var(--surface-2);
     border-radius: 999px;
     overflow: hidden;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-strong);
+    box-shadow: inset 0 1px 2px rgba(40,30,15,0.05);
   }
-  .quota-bar .fill { height: 100%; background: var(--accent); transition: width 0.4s ease; }
-  .quota-bar.warn .fill { background: var(--waiting); }
+  /* no base background here — the health-* class (always applied) sets the color;
+     a literal background would win on source order and mask it (that was the bug) */
+  .quota-bar .fill { height: 100%; border-radius: 999px; transition: width 0.4s ease, background-color 0.3s ease; }
   .quota-sep { color: var(--text-faint); margin: 0 4px; }
 
   /* ============ Filter chips ============ */
@@ -1473,8 +1485,6 @@
   const CHEV_SVG = '<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg>';
   const SA_ICON = '<svg class="sa-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5"/><path d="M8 3v10M3 8h10"/></svg>';
 
-  const TOKEN_CAP = 200000;
-
   function renderSubagent(sa) {
     const status = sa.status || 'running';
     const label = SUBAGENT_LABEL[status] || status;
@@ -1642,8 +1652,6 @@
       : '<div style="font-size:12px; color:var(--text-faint); padding:6px 0;">— 無 sub-agent —</div>';
 
     const tokensUsed = s.tokens?.used || 0;
-    const tokenPct = Math.min(100, Math.round((tokensUsed / TOKEN_CAP) * 100));
-    const tokenWarn = tokenPct >= 70;
 
     return `
 <article class="card ${stateClass} ${attentionClass}" data-collapsed="${collapsed}" data-status="${status}" data-sid="${escapeHtml(s.sid)}">
@@ -1694,14 +1702,13 @@
       </div>
       <div class="side-block">
         <div class="side-label">Tokens used</div>
-        <div class="side-value">${tokensUsed.toLocaleString()} <span style="color:var(--text-faint)">/ ${TOKEN_CAP.toLocaleString()}</span></div>
-        <div class="token-bar ${tokenWarn ? 'warn' : ''}"><div class="fill" style="width:${tokenPct}%"></div></div>
+        <div class="side-value">${tokensUsed.toLocaleString()} <span style="color:var(--text-faint)">cumulative</span></div>
       </div>
       ${typeof s.ctxRemainPct === 'number' ? `
       <div class="side-block">
         <div class="side-label">Ctx remain</div>
         <div class="side-value">${s.ctxRemainPct}% <span style="color:var(--text-faint)">left</span></div>
-        <div class="token-bar ${s.ctxRemainPct <= 30 ? 'warn' : ''}"><div class="fill" style="width:${s.ctxRemainPct}%"></div></div>
+        <div class="token-bar"><div class="fill ${healthClass(s.ctxRemainPct)}" style="width:${s.ctxRemainPct}%"></div></div>
       </div>` : ''}
       <div class="side-block">
         <div class="side-label">PID</div>
@@ -2031,13 +2038,24 @@
   let lastQuotaData = null;
   let nextQuotaFetchAt = 0;
 
-  function quotaItem(label, pct, kind /* 'used' | 'remain' */) {
+  // Color a usage bar by remaining headroom (health), not by how much is used:
+  // plenty left = green, getting low = amber, nearly out = red.
+  function healthClass(remainPct) {
+    if (typeof remainPct !== 'number' || isNaN(remainPct)) return 'health-good';
+    if (remainPct >= 50) return 'health-good';
+    if (remainPct >= 20) return 'health-warn';
+    return 'health-crit';
+  }
+
+  function quotaItem(label, pct, kind /* 'used' | 'remain' */, ago) {
     if (pct == null) return `<span class="quota-item"><span class="quota-label">${label}</span><span class="quota-reset">n/a</span></span>`;
-    const triggerWarn = kind === 'remain' ? pct <= 30 : pct >= 70;
+    const remain = kind === 'remain' ? pct : 100 - pct;
+    const agoHtml = ago ? `<span class="quota-reset">· ${ago}</span>` : '';
     return `<span class="quota-item">
       <span class="quota-label">${label}</span>
-      <span class="quota-bar ${triggerWarn ? 'warn' : ''}"><span class="fill" style="width:${pct}%"></span></span>
+      <span class="quota-bar"><span class="fill ${healthClass(remain)}" style="width:${pct}%"></span></span>
       <span class="quota-value">${pct}%${kind === 'remain' ? ' remain' : ' used'}</span>
+      ${agoHtml}
     </span>`;
   }
 
@@ -2062,11 +2080,11 @@
 
     quotaEl.className = 'quota-panel' + (isStale ? ' unavailable' : '');
     quotaEl.innerHTML = `
-      ${quotaItem('5h-limit', data.fiveHUsedPct, 'used')}
+      ${quotaItem('5h-limit', data.fiveHUsedPct, 'used', ageLabel)}
       <span class="quota-sep">|</span>
-      ${quotaItem('week-limit', data.sevenDUsedPct, 'used')}
+      ${quotaItem('week-limit', data.sevenDUsedPct, 'used', ageLabel)}
       <span class="quota-sep">·</span>
-      <span class="quota-reset">refreshed ${ageLabel}${isStale ? ' (stale)' : ''} · poll in ${nextInS}s</span>
+      <span class="quota-reset">${isStale ? '(stale) · ' : ''}poll in ${nextInS}s</span>
     `;
   }
 
