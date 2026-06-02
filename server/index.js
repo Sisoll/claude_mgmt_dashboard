@@ -58,6 +58,21 @@ function detach(sid) {
   broadcast({ type: 'remove', sid });
 }
 
+// "reset 狀態" — clear any manual override and rebuild this session fresh from its
+// JSONL (a per-session forceFullRefresh), so a wedged status recomputes from scratch.
+// Tears down in place (no 'remove' broadcast) to avoid the card flickering out/in.
+function resetSession(sid) {
+  sidecar.patch(sid, { manualStatus: null, manualStatusAt: null });
+  const meta = registry.alive.get(sid);
+  if (!meta) { schedulePush(sid); return; }
+  const tailer = tailers.get(sid);
+  if (tailer) { tailer.stop(); tailers.delete(sid); }
+  states.delete(sid);
+  const t = pushTimers.get(sid);
+  if (t) { clearTimeout(t); pushTimers.delete(sid); }
+  attach(meta); // fresh SessionState + tailer, re-reads JSONL from offset 0, then pushes
+}
+
 function snapshotFor(sid) {
   const st = states.get(sid);
   if (!st) return null;
@@ -107,7 +122,7 @@ function cleanupStaleFiles() {
   // statusline_<sid>_(5h|7d|ctx).tmp in ~/.claude
   try {
     for (const f of fs.readdirSync(CLAUDE_DIR)) {
-      const m = f.match(/^statusline_(.+?)_(5h|7d|ctx)\.tmp$/);
+      const m = f.match(/^statusline_(.+?)_(5h|7d|ctx)(_reset)?\.tmp$/);
       if (m && !aliveSids.has(m[1])) tryDel(path.join(CLAUDE_DIR, f), f);
     }
   } catch {}
@@ -222,7 +237,9 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/dashboard')) {
     try {
       const html = fs.readFileSync(DASHBOARD_HTML, 'utf8');
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      // no-store: the dashboard is a single hand-edited file served locally; without
+      // this the browser caches it and CSS/JS edits silently don't show up on refresh.
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(html);
     } catch (err) {
       res.writeHead(500); res.end('dashboard html not found: ' + err.message);
@@ -331,6 +348,8 @@ wss.on('connection', (ws) => {
     } else if (msg.type === 'clearManualStatus' && msg.sid) {
       sidecar.patch(msg.sid, { manualStatus: null, manualStatusAt: null });
       schedulePush(msg.sid);
+    } else if (msg.type === 'resetState' && msg.sid) {
+      resetSession(msg.sid);
     }
   });
 

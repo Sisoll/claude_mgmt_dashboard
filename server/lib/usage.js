@@ -39,16 +39,23 @@ function readLatestTmpValue(suffix) {
 
 function getQuotas() {
   // Account-level only (5h + week). ctx is per-session and surfaced on each card snapshot instead.
+  // NOTE: the statusline writes `100 - used` to these tmp files, i.e. the value is the
+  // REMAINING percentage, not used. The *_reset.tmp files hold the quota reset epoch (seconds),
+  // which the statusline now also persists (Claude Code only feeds resets_at to the statusline).
   const fiveH  = readLatestTmpValue('5h');
   const sevenD = readLatestTmpValue('7d');
+  const fiveHReset  = readLatestTmpValue('5h_reset');
+  const sevenDReset = readLatestTmpValue('7d_reset');
   const newest = [fiveH, sevenD].filter(Boolean).reduce((m, x) => Math.max(m, x.mtime), 0);
   if (newest === 0) {
     return { available: false };
   }
   return {
     available: true,
-    fiveHUsedPct:  fiveH  ? fiveH.value  : null,
-    sevenDUsedPct: sevenD ? sevenD.value : null,
+    fiveHRemainPct:  fiveH  ? fiveH.value  : null,
+    sevenDRemainPct: sevenD ? sevenD.value : null,
+    fiveHResetsAt:   fiveHReset  ? fiveHReset.value  : null,  // epoch seconds
+    sevenDResetsAt:  sevenDReset ? sevenDReset.value : null,
     refreshedAt: newest,
     age: Date.now() - newest,
   };

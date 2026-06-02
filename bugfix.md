@@ -2,6 +2,8 @@
 
 > 已修的 bug，**最新在上**。每條可直接當 commit message 用。
 
+- quota limit bar 顏色不出來：真因是 quota 的 fill 是 inline `<span>`（被忽略 width/height、沒有方塊可上色）→ 加 `display:block`；另外 server 沒送 `Cache-Control` 導致瀏覽器吃舊頁 → 加 `no-store` (`Claude_Sessions_Dashboard.html`, `server/index.js`)
+- quota %/顏色反向：statusline 寫進 tmp 的是「剩餘%」(`100 - used`)，但 usage.js 當成 used、dashboard 又 `100-X` 上色 → 雙重反向。usage.js 改輸出 `*RemainPct`、dashboard 顯示「X% remain」(`server/lib/usage.js`, `Claude_Sessions_Dashboard.html`)
 - 多 sub-agent 在跑時整張卡被誤判成「需要決定」：stuck-tool 判定排除 Task/Agent（sub-agent 本就會跑很久，不是權限提示）(`server/lib/parse-state.js`)
 - `/clear` 後 runtime 黏在 ~72h：runtime 改用目前 JSONL 的首事件 `firstEventTs`，而非 marker 的 `startedAt`（後者是整個行程壽命）(`server/lib/parse-state.js`)
 - 模型 Opus 4.8 顯示成「4 8」（少了小數點）：`shortenModel` 補 `claude-opus-4-8` mapping（含 `[1m]` 變體），fallback 也改成保留版本小數點 (`server/lib/parse-state.js`)

@@ -36,10 +36,11 @@
     --running-soft: #e2ecf6;
     --running-ring: rgba(43,108,176,0.18);
 
-    --waiting: #c43838;
-    --waiting-soft: #fbe4e2;
-    --waiting-ring: rgba(196,56,56,0.22);
-    --waiting-deep: #8a1f1f;
+    /* 「需要決定」用琥珀/橘，不用紅（紅留給 failed/錯誤，避免看起來像出錯） */
+    --waiting: #c9781f;
+    --waiting-soft: #fbe9cf;
+    --waiting-ring: rgba(201,120,31,0.22);
+    --waiting-deep: #8f520a;
 
     --success: #4a7c4f;
     --success-soft: #e3eee2;
@@ -54,7 +55,7 @@
 
     --shadow-sm: 0 1px 2px rgba(40,30,15,0.04), 0 0 0 1px rgba(40,30,15,0.04);
     --shadow-md: 0 1px 3px rgba(40,30,15,0.06), 0 4px 12px rgba(40,30,15,0.04), 0 0 0 1px rgba(40,30,15,0.05);
-    --shadow-waiting: 0 0 0 1px var(--waiting), 0 0 0 4px var(--waiting-ring), 0 8px 24px rgba(196,56,56,0.12);
+    --shadow-waiting: 0 0 0 1px var(--waiting), 0 0 0 4px var(--waiting-ring), 0 8px 24px rgba(201,120,31,0.12);
 
     --radius: 10px;
     --radius-sm: 6px;
@@ -204,6 +205,7 @@
     display: flex;
     flex-direction: column;
     gap: 32px;
+    margin-top: 20px; /* clearance so the first card's project-name tab doesn't touch the filter bar */
   }
 
   /* ============ Card ============ */
@@ -297,8 +299,8 @@
   }
 
   @keyframes card-pulse {
-    0%, 100% { box-shadow: 0 0 0 1px var(--waiting), 0 6px 18px rgba(196,56,56,0.10); }
-    50%      { box-shadow: 0 0 0 1px var(--waiting), 0 6px 18px rgba(196,56,56,0.22); }
+    0%, 100% { box-shadow: 0 0 0 1px var(--waiting), 0 6px 18px rgba(201,120,31,0.10); }
+    50%      { box-shadow: 0 0 0 1px var(--waiting), 0 6px 18px rgba(201,120,31,0.22); }
   }
   @keyframes pulse-dot {
     0%, 100% { opacity: 1; transform: scale(1); }
@@ -455,7 +457,7 @@
   }
   .perm-pill[data-mode="default"]           { background: var(--surface-2); color: var(--text-muted); }
   .perm-pill[data-mode="acceptEdits"]       { background: #fff5e1; color: #8a6a00; border-color: #f3e2b2; }
-  .perm-pill[data-mode="bypassPermissions"] { background: var(--waiting-soft); color: var(--waiting-deep); border-color: rgba(196,56,56,0.25); }
+  .perm-pill[data-mode="bypassPermissions"] { background: var(--waiting-soft); color: var(--waiting-deep); border-color: rgba(201,120,31,0.25); }
   .perm-pill[data-mode="plan"]              { background: var(--accent-tint); color: var(--accent-deep); border-color: var(--accent-soft); }
   /* Host pill — floats at top-right corner of the card, mirror of folder-label */
   .host-pill {
@@ -643,7 +645,7 @@
 
   .decision-box {
     background: var(--waiting-soft);
-    border: 1px solid rgba(196,56,56,0.2);
+    border: 1px solid rgba(201,120,31,0.2);
     border-left: 3px solid var(--waiting);
     padding: 12px 14px;
     border-radius: var(--radius-sm);
@@ -659,7 +661,7 @@
   }
   .decision-choices .btn {
     background: #fff;
-    border: 1px solid rgba(196,56,56,0.3);
+    border: 1px solid rgba(201,120,31,0.3);
     color: var(--waiting-deep);
     font-size: 12px;
     font-family: var(--font-mono);
@@ -1044,11 +1046,15 @@
 
   /* ============ Usage quota panel ============ */
   .quota-panel {
+    position: relative;          /* poll-in 以絕對定位釘在右上 */
     display: flex;
-    align-items: center;
-    gap: 18px;
-    padding: 10px 16px;
-    background: var(--surface);
+    align-items: flex-start;
+    justify-content: center;     /* poll 移走後，兩個項目往中間靠 */
+    flex-wrap: wrap;
+    gap: 28px;
+    row-gap: 12px;
+    padding: 12px 18px 12px;
+    background: var(--accent-tint);   /* 跟卡片(白)區隔的淡淡底色 */
     border: 1px solid var(--border);
     border-radius: var(--radius);
     margin-bottom: 16px;
@@ -1058,62 +1064,79 @@
     font-variant-numeric: tabular-nums;
   }
   .quota-panel.unavailable { color: var(--text-faint); justify-content: center; font-style: italic; }
-  .quota-item { display: flex; align-items: center; gap: 8px; }
+  /* label 當小標放在上面（層次感），bar + 數值在下一列 → 也避免長日期把一列撐到換行跑版 */
+  .quota-item { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+  .quota-row  { display: flex; align-items: center; gap: 8px; }
+  /* 固定寬 + nowrap：倒數時間變短不會改變項目寬度，bar 才不會因置中而左右跳動 */
+  .quota-row .quota-reset { display: inline-block; min-width: 28ch; white-space: nowrap; }
+  /* poll-in：釘在面板右上、字更淡 */
+  .quota-poll { position: absolute; top: 9px; right: 16px; font-size: 10.5px; color: var(--text-faint); opacity: 0.6; }
   .quota-label {
-    font-weight: 600;
-    letter-spacing: 0.06em;
+    font-weight: 700;
+    letter-spacing: 0.1em;
     color: var(--text-muted);
-    font-size: 10.5px;
+    font-size: 10px;
     text-transform: uppercase;
   }
   .quota-value { color: var(--text); font-weight: 500; }
   .quota-reset { color: var(--text-faint); }
   .quota-bar {
-    width: 88px;
+    width: 160px;
     height: 8px;
+    margin-left: 8px;            /* 顏色 bar 稍微右移，跟上方 label 錯開 */
     background: var(--surface-2);
     border-radius: 999px;
     overflow: hidden;
     border: 1px solid var(--border-strong);
     box-shadow: inset 0 1px 2px rgba(40,30,15,0.05);
   }
-  /* no base background here — the health-* class (always applied) sets the color;
-     a literal background would win on source order and mask it (that was the bug) */
-  .quota-bar .fill { height: 100%; border-radius: 999px; transition: width 0.4s ease, background-color 0.3s ease; }
+  /* no base background here — the health-* class (always applied) sets the color.
+     display:block is REQUIRED: the fill is a <span> (inline), and inline elements
+     ignore width/height — without this the fill has no box and never paints. */
+  .quota-bar .fill { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease, background-color 0.3s ease; }
   .quota-sep { color: var(--text-faint); margin: 0 4px; }
 
   /* ============ Filter chips ============ */
   .filter-bar {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 16px;
+    gap: 10px;
+    margin-bottom: 18px;
   }
   .chip {
-    padding: 5px 11px;
+    padding: 7px 15px;
     border-radius: 999px;
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--text-secondary);
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 500;
     cursor: pointer;
     font-family: var(--font-sans);
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
   }
   .chip:hover { background: var(--surface-2); border-color: var(--border-strong); }
   .chip.active { background: var(--text); color: #fff; border-color: var(--text); }
   .chip .count {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 12px;
     background: rgba(0,0,0,0.06);
-    padding: 1px 6px;
+    padding: 1px 7px;
     border-radius: 999px;
     color: var(--text-muted);
   }
   .chip.active .count { background: rgba(255,255,255,0.18); color: rgba(255,255,255,0.85); }
+  /* chips 染成對應下方卡片 status 的顏色（inactive = 淡底+彩字，active = 實色+白字） */
+  .chip[data-filter="running"]   { background: var(--running-soft); color: var(--running);     border-color: var(--running-soft); }
+  .chip[data-filter="waiting"]   { background: var(--waiting-soft); color: var(--waiting-deep); border-color: var(--waiting-soft); }
+  .chip[data-filter="completed"] { background: var(--success-soft); color: var(--success);      border-color: var(--success-soft); }
+  .chip[data-filter="failed"]    { background: var(--error-soft);   color: var(--error);         border-color: var(--error-soft); }
+  .chip.active[data-filter="running"]   { background: var(--running); color: #fff; border-color: var(--running); }
+  .chip.active[data-filter="waiting"]   { background: var(--waiting); color: #fff; border-color: var(--waiting); }
+  .chip.active[data-filter="completed"] { background: var(--success); color: #fff; border-color: var(--success); }
+  .chip.active[data-filter="failed"]    { background: var(--error);   color: #fff; border-color: var(--error); }
 
   /* ============ Empty / hidden ============ */
   .card.is-hidden { display: none; }
@@ -1406,7 +1429,7 @@
   const faviconNormal = faviconEl.getAttribute('href');
   const faviconAlert = 'data:image/svg+xml;utf8,' + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
-    '<rect width="32" height="32" rx="8" fill="#c43838"/>' +
+    '<rect width="32" height="32" rx="8" fill="#c9781f"/>' +
     '<circle cx="16" cy="16" r="6" fill="#fff"/>' +
     '</svg>'
   );
@@ -1681,9 +1704,7 @@
       <span class="status ${status}" title="${s.statusOverridden ? 'manual override' : 'auto-detected'}">
         <span class="dot"></span>${statusLabel}${s.statusOverridden ? '<span class="status-override-tag">manual</span>' : ''}
       </span>
-      ${s.statusOverridden
-        ? `<button class="mini-action" data-action="clearManualStatus" title="清除手動 override，回到自動判定">↩ 取消手動</button>`
-        : (status !== 'completed' ? `<button class="mini-action" data-action="markDone" title="忽略目前判定，強制標為完成（新對話進來會自動失效）">✓ 標記完成</button>` : '')}
+      <button class="mini-action" data-action="resetState" title="清掉手動 override 並重新從 JSONL 重算狀態">↻ reset 狀態</button>
     </div>
     <div class="runtime">
       <span class="label">runtime</span>
@@ -1908,28 +1929,17 @@
       const action = actionBtn.getAttribute('data-action');
 
       // Local-only actions (sidecar via WS, no API roundtrip needed)
-      if (action === 'markDone') {
+      if (action === 'resetState') {
         if (!sid) return;
         const s = liveSessions.get(sid);
         if (s) {
-          s.computedStatus = s.status;
-          s.status = 'completed';
-          s.statusOverridden = true;
-          renderAll();
-        }
-        if (wsSend) wsSend({ type: 'markStatus', sid, status: 'completed' });
-        pushToast({ title: '已標記完成', msg: '若有新對話進來會自動解除' });
-        return;
-      }
-      if (action === 'clearManualStatus') {
-        if (!sid) return;
-        const s = liveSessions.get(sid);
-        if (s) {
+          // optimistic: drop any manual override locally; server re-reads & re-pushes
           s.statusOverridden = false;
           if (s.computedStatus) s.status = s.computedStatus;
           renderAll();
         }
-        if (wsSend) wsSend({ type: 'clearManualStatus', sid });
+        if (wsSend) wsSend({ type: 'resetState', sid });
+        pushToast({ title: '已 reset 狀態', msg: '清除手動 override，重新從 JSONL 重算' });
         return;
       }
 
@@ -2034,7 +2044,7 @@
 
   // ============== Usage quota polling ==============
   const quotaEl = $('#quota-panel');
-  const QUOTA_REFRESH_INTERVAL = 8000;
+  const QUOTA_REFRESH_INTERVAL = 30000;
   let lastQuotaData = null;
   let nextQuotaFetchAt = 0;
 
@@ -2053,9 +2063,11 @@
     const agoHtml = ago ? `<span class="quota-reset">· ${ago}</span>` : '';
     return `<span class="quota-item">
       <span class="quota-label">${label}</span>
-      <span class="quota-bar"><span class="fill ${healthClass(remain)}" style="width:${pct}%"></span></span>
-      <span class="quota-value">${pct}%${kind === 'remain' ? ' remain' : ' used'}</span>
-      ${agoHtml}
+      <span class="quota-row">
+        <span class="quota-bar"><span class="fill ${healthClass(remain)}" style="width:${pct}%"></span></span>
+        <span class="quota-value">${pct}%${kind === 'remain' ? ' remain' : ' used'}</span>
+        ${agoHtml}
+      </span>
     </span>`;
   }
 
@@ -2078,13 +2090,30 @@
     const isStale = ageS > 300;
     const nextInS = Math.max(0, Math.ceil((nextQuotaFetchAt - now) / 1000));
 
+    // quota 補滿時間：resets_at（epoch 秒）→ 本地時刻 + 相對剩餘
+    //   今天:  "resets 14:00 (2h29m)"      跨日: "resets 6/5 12:00 (3d0h)"
+    const fmtReset = (epochSec) => {
+      if (!epochSec) return '';
+      const diff = epochSec * 1000 - now;
+      if (diff <= 60000) return 'resetting';
+      const dt = new Date(epochSec * 1000);
+      const clock = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const rel = d > 0 ? `${d}d${h}h` : (h > 0 ? `${h}h${m}m` : `${m}m`);
+      // toDateString 含年份 → 換日/換年都正確；日補成 2 格（"6/ 5"）避免位數變動時跳位
+      const crossesDay = dt.toDateString() !== new Date(now).toDateString();
+      const day = String(dt.getDate()).padStart(2, ' ');
+      const stamp = crossesDay ? `${dt.getMonth()+1}/${day} ${clock}` : clock;
+      return `resets ${stamp} (${rel})`;
+    };
+
     quotaEl.className = 'quota-panel' + (isStale ? ' unavailable' : '');
     quotaEl.innerHTML = `
-      ${quotaItem('5h-limit', data.fiveHUsedPct, 'used', ageLabel)}
-      <span class="quota-sep">|</span>
-      ${quotaItem('week-limit', data.sevenDUsedPct, 'used', ageLabel)}
-      <span class="quota-sep">·</span>
-      <span class="quota-reset">${isStale ? '(stale) · ' : ''}poll in ${nextInS}s</span>
+      ${quotaItem('5h-limit', data.fiveHRemainPct, 'remain', fmtReset(data.fiveHResetsAt))}
+      ${quotaItem('week-limit', data.sevenDRemainPct, 'remain', fmtReset(data.sevenDResetsAt))}
+      <span class="quota-reset quota-poll">${isStale ? '(stale) · ' : ''}poll in ${nextInS}s</span>
     `;
   }
 
