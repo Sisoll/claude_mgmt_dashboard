@@ -8,7 +8,7 @@ const { SessionRegistry, isAlive } = require('./lib/sessions');
 const { JsonlTailer } = require('./lib/jsonl-tail');
 const { SessionState } = require('./lib/parse-state');
 const sidecar = require('./lib/sidecar');
-const { flashWindowForPid, focusWindowForPid } = require('./lib/win-helpers');
+const { flashWindowForPid, focusWindowForPid, sendPromptToPid } = require('./lib/win-helpers');
 const { getQuotas, readCtxRemainForSession } = require('./lib/usage');
 
 const PORT = Number(process.env.PORT || 7878);
@@ -86,11 +86,12 @@ function snapshotFor(sid) {
   const ctx = readCtxRemainForSession(sid);
   if (ctx) snap.ctxRemainPct = ctx.value;
 
-  // Manual status override (mark done / etc.) — valid only while no new JSONL activity has happened since.
+  // Manual status override (reset / pending / custom / etc.) — valid only while no new JSONL activity has happened since.
   if (meta.manualStatus && meta.manualStatusAt && meta.manualStatusAt > (snap.lastActivity || 0)) {
     snap.computedStatus = snap.status;
     snap.status = meta.manualStatus;
     snap.statusOverridden = true;
+    if (meta.manualStatusText) snap.manualStatusText = meta.manualStatusText;
   }
   return snap;
 }
@@ -138,7 +139,7 @@ function cleanupStaleFiles() {
         continue;
       }
       // orphan flag files (waiting / stop)
-      const ff = f.match(/^(.+?)\.(waiting|stop)\.flag$/);
+      const ff = f.match(/^(.+?)\.(waiting|stop|permission)\.flag$/);
       if (ff && !aliveSids.has(ff[1])) {
         tryDel(path.join(SESSIONS_DIR, f), f);
       }
@@ -167,7 +168,7 @@ function handleStatusTransition(sid, prev, next) {
   if (next === 'waiting') {
     const meta = registry.alive.get(sid);
     if (meta) {
-      flashWindowForPid(meta.pid, leafOfCwd(meta.cwd)).catch(() => {});
+      flashWindowForPid(meta.pid, leafOfCwd(meta.cwd), meta.detectedHost?.pid || 0).catch(() => {});
     }
   }
 }
@@ -313,10 +314,16 @@ async function handleAction(sid, action, payload) {
       return { ok: true };
     case 'focus':
       if (!meta) throw new Error('session not alive');
-      return await focusWindowForPid(meta.pid, leafOfCwd(meta.cwd));
+      return await focusWindowForPid(meta.pid, leafOfCwd(meta.cwd), meta.detectedHost?.pid || 0);
     case 'flash':
       if (!meta) throw new Error('session not alive');
-      return await flashWindowForPid(meta.pid, leafOfCwd(meta.cwd));
+      return await flashWindowForPid(meta.pid, leafOfCwd(meta.cwd), meta.detectedHost?.pid || 0);
+    case 'sendPrompt': {
+      if (!meta) throw new Error('session not alive');
+      const text = String(payload.text || '').trim();
+      if (!text) throw new Error('empty prompt');
+      return await sendPromptToPid(meta.pid, text, leafOfCwd(meta.cwd), meta.detectedHost?.pid || 0);
+    }
     case 'terminate':
       if (!meta) throw new Error('session not alive');
       try { process.kill(meta.pid, 'SIGTERM'); return { ok: true }; }
@@ -342,8 +349,10 @@ wss.on('connection', (ws) => {
     } else if (msg.type === 'setViewedSince' && msg.sid) {
       sidecar.patch(msg.sid, { viewedSince: Number(msg.viewedSince) || 0 });
       schedulePush(msg.sid);
-    } else if (msg.type === 'markStatus' && msg.sid && ['completed','waiting','failed','running'].includes(msg.status)) {
-      sidecar.patch(msg.sid, { manualStatus: msg.status, manualStatusAt: Date.now() });
+    } else if (msg.type === 'markStatus' && msg.sid && ['completed','waiting','failed','running','pending','custom'].includes(msg.status)) {
+      const patch = { manualStatus: msg.status, manualStatusAt: Date.now() };
+      if (msg.status === 'custom') patch.manualStatusText = String(msg.text || '').slice(0, 60);
+      sidecar.patch(msg.sid, patch);
       schedulePush(msg.sid);
     } else if (msg.type === 'clearManualStatus' && msg.sid) {
       sidecar.patch(msg.sid, { manualStatus: null, manualStatusAt: null });

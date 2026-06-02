@@ -279,15 +279,22 @@
             mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
             mask-composite: exclude;
-    animation: orbit-marquee 2.6s linear infinite;
+    animation: orbit-marquee 2.8s infinite;
     pointer-events: none;
     z-index: 1;
     transition: opacity 0.15s ease-out;
   }
   /* Hover acknowledges attention — drop the orbit so it stops nagging while you read */
   .card.needs-attention:hover::before { opacity: 0; }
+  /* 各邊不同速度（光點繞行）：上 0.3→0.75、右 0.75→1.2、下 1.2(等速)、左 1.2→0.8。
+     %  跨距 = 各邊的平均速度（慢的邊佔較多時間）；per-keyframe timing = 邊內加/減速。
+     角度 0°=上、90°=右、180°=下、270°=左（順時針）。 */
   @keyframes orbit-marquee {
-    to { --orbit-angle: 360deg; }
+    0%    { --orbit-angle: 0deg;   animation-timing-function: ease-in; }  /* 上：慢→快 */
+    40%   { --orbit-angle: 90deg;  animation-timing-function: ease-in; }  /* 右：加速 */
+    61.5% { --orbit-angle: 180deg; animation-timing-function: linear; }   /* 下：等速(最快) */
+    79%   { --orbit-angle: 270deg; animation-timing-function: ease-out; } /* 左：減速 */
+    100%  { --orbit-angle: 360deg; }
   }
   @keyframes card-pulse-completed-persist {
     0%, 100% { box-shadow: 0 0 0 1px var(--success), 0 6px 18px rgba(74,124,79,0.10); }
@@ -406,6 +413,8 @@
   }
   .session-name:hover + .rename-hint { opacity: 1; }
 
+  /* 兩列 meta：第一列 path/branch/model/perm、第二列固定放 started/active */
+  .meta-rows { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .meta-row {
     display: flex;
     align-items: center;
@@ -418,6 +427,7 @@
     flex-wrap: wrap;
     row-gap: 4px;
   }
+  .meta-row-2 { color: var(--text-faint); }
   .meta-row > * { flex-shrink: 0; }
   .meta-row .path {
     color: var(--text-secondary);
@@ -460,6 +470,31 @@
   .perm-pill[data-mode="bypassPermissions"] { background: var(--waiting-soft); color: var(--waiting-deep); border-color: rgba(201,120,31,0.25); }
   .perm-pill[data-mode="plan"]              { background: var(--accent-tint); color: var(--accent-deep); border-color: var(--accent-soft); }
   /* Host pill — floats at top-right corner of the card, mirror of folder-label */
+  /* host pill + 快捷視窗按鈕，整組釘在卡片右上 */
+  .host-cluster {
+    position: absolute;
+    top: -12px;
+    right: 18px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .host-cluster .host-pill { position: static; top: auto; right: auto; }
+  .host-act {
+    font-family: var(--font-sans);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(40,30,15,0.10), 0 0 0 2px var(--surface);
+  }
+  .host-act:hover { background: var(--surface-2); color: var(--text); border-color: var(--text-faint); }
   .host-pill {
     position: absolute;
     top: -12px;
@@ -528,8 +563,17 @@
   .status.completed .dot { background: var(--success); }
   .status.failed    { background: var(--error-soft); color: var(--error); }
   .status.failed .dot    { background: var(--error); }
+  .status.pending   { background: var(--surface-2); color: var(--text-muted); }
+  .status.pending .dot   { background: var(--text-muted); }
+  /* custom 歸類為「待定」：用 pending 配色，只是顯示使用者輸入的文字 */
+  .status.custom    { background: var(--surface-2); color: var(--text-muted); }
+  .status.custom .dot    { background: var(--text-muted); }
 
   .runtime {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
     font-family: var(--font-mono);
     font-size: 12px;
     color: var(--text-muted);
@@ -537,14 +581,14 @@
     text-align: right;
     min-width: 80px;
   }
-  /* Status cluster — status pill + a tiny inline action (mark-done) stacked underneath */
+  /* Status cluster — status pill + a dropdown to manually set status */
   .status-cluster {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 5px;
+    gap: 6px;
   }
-  .status-cluster .mini-action {
+  .mini-action {
     font-family: var(--font-mono);
     font-size: 10.5px;
     font-weight: 500;
@@ -557,7 +601,19 @@
     letter-spacing: 0.02em;
     line-height: 1.3;
   }
-  .status-cluster .mini-action:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); }
+  .mini-action:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); }
+  .status-select {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+    max-width: 132px;
+  }
+  .status-select:hover { border-color: var(--border-strong); color: var(--text); }
   .runtime .label { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px; }
 
   /* ============ Card body (collapsible) ============ */
@@ -951,6 +1007,23 @@
     border-color: var(--waiting);
     color: var(--waiting-deep);
   }
+  /* F4: 送 prompt 輸入框 */
+  .send-prompt { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .send-prompt-input {
+    width: 100%;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+    line-height: 1.4;
+  }
+  .send-prompt-input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+  .send-prompt-btn { justify-content: center; }
 
   /* ============ Toast ============ */
   .toast-stack {
@@ -1137,6 +1210,8 @@
   .chip.active[data-filter="waiting"]   { background: var(--waiting); color: #fff; border-color: var(--waiting); }
   .chip.active[data-filter="completed"] { background: var(--success); color: #fff; border-color: var(--success); }
   .chip.active[data-filter="failed"]    { background: var(--error);   color: #fff; border-color: var(--error); }
+  .chip[data-filter="pending"]          { background: var(--surface-2); color: var(--text-muted); border-color: var(--border); }
+  .chip.active[data-filter="pending"]   { background: var(--text-muted); color: #fff; border-color: var(--text-muted); }
 
   /* ============ Empty / hidden ============ */
   .card.is-hidden { display: none; }
@@ -1206,6 +1281,7 @@
     <button class="chip" data-filter="waiting">需要決定 <span class="count">2</span></button>
     <button class="chip" data-filter="running">執行中 <span class="count">2</span></button>
     <button class="chip" data-filter="completed">已完成 <span class="count">1</span></button>
+    <button class="chip" data-filter="pending">待定 <span class="count">0</span></button>
     <button class="chip" data-filter="failed">錯誤 <span class="count">1</span></button>
     <div style="flex:1"></div>
     <div style="font-size:12px; color:var(--text-faint); font-family:var(--font-mono);">sorted by: status · last active</div>
@@ -1264,6 +1340,7 @@
     waiting: 'Waiting for input',
     completed: 'Completed',
     failed: 'Error',
+    pending: 'Pending',
   };
   const SUBAGENT_LABEL = {
     running: 'running',
@@ -1651,7 +1728,7 @@
     const started = s.startedAt ? formatHHMM(s.startedAt) : '—';
     const active = s.lastActivity ? formatRelative(s.lastActivity) : 'just now';
     const runtime = formatRuntime(s.runtimeMs);
-    const statusLabel = STATUS_LABEL[status] || status;
+    const statusLabel = status === 'custom' ? (s.manualStatusText || 'Custom') : (STATUS_LABEL[status] || status);
 
     const modelPill = s.modelLabel
       ? `<span class="sep">·</span><span class="model-pill">${escapeHtml(s.modelLabel)}</span>` : '';
@@ -1661,7 +1738,11 @@
     const hostKind = s.hostName ? hostKindFromName(s.hostName) : (s.entrypoint || '');
     const hostTooltip = s.hostName ? `host: ${s.hostName} (entrypoint: ${s.entrypoint || 'n/a'})` : `entrypoint: ${s.entrypoint || 'n/a'} · 找不到祖先視窗`;
     const hostPillHead = hostDisplay
-      ? `<span class="host-pill" data-host="${escapeHtml(hostKind)}" title="${escapeHtml(hostTooltip)}">${escapeHtml(hostDisplay)}</span>` : '';
+      ? `<div class="host-cluster">
+        <span class="host-pill" data-host="${escapeHtml(hostKind)}" title="${escapeHtml(hostTooltip)}">${escapeHtml(hostDisplay)}</span>
+        <button class="host-act" data-action="focus" title="開啟/聚焦該視窗">開啟視窗</button>
+        <button class="host-act" data-action="flash" title="閃該視窗的工作列">閃工作列</button>
+      </div>` : '';
 
     const stateClass = isWaiting ? 'is-waiting'
                      : isCompleted ? 'is-completed'
@@ -1688,27 +1769,37 @@
         <span class="session-name" contenteditable="true" spellcheck="false">${name}</span>
         <span class="rename-hint">click to rename</span>
       </div>
-      <div class="meta-row">
-        <span class="path">${cwd}</span>
-        <span class="sep">·</span>
-        <span class="branch">${BRANCH_SVG}${branch}</span>
-        ${modelPill}
-        ${permPill}
-        <span class="sep">·</span>
-        <span>started ${started}</span>
-        <span class="sep">·</span>
-        <span class="meta-active" data-last-activity="${s.lastActivity || 0}">active ${active}</span>
+      <div class="meta-rows">
+        <div class="meta-row">
+          <span class="path">${cwd}</span>
+          <span class="sep">·</span>
+          <span class="branch">${BRANCH_SVG}${branch}</span>
+          ${modelPill}
+          ${permPill}
+        </div>
+        <div class="meta-row meta-row-2">
+          <span>started ${started}</span>
+          <span class="sep">·</span>
+          <span class="meta-active" data-last-activity="${s.lastActivity || 0}">active ${active}</span>
+        </div>
       </div>
     </div>
     <div class="status-cluster">
       <span class="status ${status}" title="${s.statusOverridden ? 'manual override' : 'auto-detected'}">
         <span class="dot"></span>${statusLabel}${s.statusOverridden ? '<span class="status-override-tag">manual</span>' : ''}
       </span>
-      <button class="mini-action" data-action="resetState" title="清掉手動 override 並重新從 JSONL 重算狀態">↻ reset 狀態</button>
+      <select class="status-select" title="手動設定狀態（新對話進來會自動解除）">
+        <option value="">＋ 標記狀態…</option>
+        <option value="completed">已完成</option>
+        <option value="pending">待定</option>
+        <option value="running">執行中</option>
+        <option value="failed">錯誤</option>
+        <option value="__custom">✎ 自訂文字…</option>
+      </select>
     </div>
     <div class="runtime">
-      <span class="label">runtime</span>
-      ${runtime}
+      <button class="mini-action" data-action="resetState" title="清掉手動 override，重新從 JSONL 重算">↻ reset</button>
+      <div class="runtime-time"><span class="label">runtime</span>${runtime}</div>
     </div>
   </header>
   <div class="card-body">
@@ -1741,6 +1832,10 @@
       <div class="actions">
         <button class="action-btn" data-action="flash" title="閃對應 host 視窗的工作列（多視窗時用來辨識是哪個）">⚡ 閃工作列</button>
         <button class="action-btn danger" data-action="terminate"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>終止</button>
+      </div>
+      <div class="send-prompt">
+        <textarea class="send-prompt-input" rows="2" spellcheck="false" placeholder="送 prompt 到此 session…（複製+聚焦+貼上，自行按 Enter 送出）"></textarea>
+        <button class="action-btn send-prompt-btn">✎ 送出 prompt</button>
       </div>
     </aside>
   </div>
@@ -1807,9 +1902,10 @@
 
   function updateStats() {
     const sessions = Array.from(liveSessions.values());
-    const counts = { all: sessions.length, running: 0, waiting: 0, completed: 0, failed: 0 };
+    const counts = { all: sessions.length, running: 0, waiting: 0, completed: 0, failed: 0, pending: 0 };
     for (const s of sessions) {
       if (counts[s.status] !== undefined) counts[s.status]++;
+      if (s.status === 'custom') counts.pending++;   // custom 歸類為待定
     }
     $('#stat-total').textContent = counts.all;
     $('#stat-running').textContent = counts.running;
@@ -1827,7 +1923,9 @@
     currentFilter = f;
     $$('.card').forEach(card => {
       const s = card.getAttribute('data-status');
-      card.classList.toggle('is-hidden', !(f === 'all' || f === s));
+      // 待定(pending) chip also catches custom (custom 歸類為待定)
+      const match = f === 'all' || f === s || (f === 'pending' && s === 'custom');
+      card.classList.toggle('is-hidden', !match);
     });
   }
 
@@ -1865,6 +1963,17 @@
   // ============== Delegation: collapse / rename / actions / filters / turn-toggle / view-watermark ==============
   sessionsContainer.addEventListener('click', (e) => {
     // View-watermark controls (hide / reset)
+    const sendBtn = e.target.closest('.send-prompt-btn');
+    if (sendBtn) {
+      e.stopPropagation();
+      const card = sendBtn.closest('.card');
+      const sid = card?.getAttribute('data-sid');
+      const ta = card?.querySelector('.send-prompt-input');
+      const text = ta ? ta.value : '';
+      if (text.trim()) sendPromptToSession(sid, text).then((ok) => { if (ok && ta) ta.value = ''; });
+      return;
+    }
+
     const watermarkBtn = e.target.closest('[data-action="hide-history"], [data-action="reset-view"]');
     if (watermarkBtn) {
       e.stopPropagation();
@@ -1904,7 +2013,7 @@
     }
 
     const head = e.target.closest('.card-head');
-    if (head && !e.target.closest('.session-name, .action-btn, .mini-action, .status, .btn')) {
+    if (head && !e.target.closest('.session-name, .action-btn, .mini-action, .status, .status-select, .btn')) {
       const card = head.closest('.card');
       const cur = card.getAttribute('data-collapsed') === 'true';
       const next = !cur;
@@ -1921,7 +2030,7 @@
       return;
     }
 
-    const actionBtn = e.target.closest('.action-btn, .mini-action');
+    const actionBtn = e.target.closest('.action-btn, .mini-action, .host-act');
     if (actionBtn) {
       e.stopPropagation();
       const card = actionBtn.closest('.card');
@@ -1942,9 +2051,48 @@
         pushToast({ title: '已 reset 狀態', msg: '清除手動 override，重新從 JSONL 重算' });
         return;
       }
+      if (action === 'markPending') {
+        if (!sid) return;
+        const s = liveSessions.get(sid);
+        if (s) { s.computedStatus = s.computedStatus || s.status; s.status = 'pending'; s.statusOverridden = true; renderAll(); }
+        if (wsSend) wsSend({ type: 'markStatus', sid, status: 'pending' });
+        pushToast({ title: '已標記暫停', msg: '手動 override；有新對話進來會自動解除' });
+        return;
+      }
+      if (action === 'markCustom') {
+        if (!sid) return;
+        const s = liveSessions.get(sid);
+        const txt = (prompt('自訂狀態文字（手動；新活動會自動解除）:', (s && s.manualStatusText) || '') || '').trim();
+        if (!txt) return;
+        if (s) { s.computedStatus = s.computedStatus || s.status; s.status = 'custom'; s.manualStatusText = txt.slice(0, 60); s.statusOverridden = true; renderAll(); }
+        if (wsSend) wsSend({ type: 'markStatus', sid, status: 'custom', text: txt });
+        return;
+      }
 
       handleAction(sid, action, actionBtn.textContent.trim());
       return;
+    }
+  });
+
+  // Manual status dropdown (F12): set completed/pending/running/failed, or custom text
+  // (custom is categorised as 待定/pending). New JSONL activity auto-clears the override.
+  sessionsContainer.addEventListener('change', (e) => {
+    const sel = e.target.closest('.status-select');
+    if (!sel) return;
+    const v = sel.value;
+    sel.value = '';
+    const card = sel.closest('.card');
+    const sid = card?.getAttribute('data-sid');
+    if (!sid || !v) return;
+    const s = liveSessions.get(sid);
+    if (v === '__custom') {
+      const txt = (prompt('自訂狀態文字（歸類為待定；新活動會自動解除）:', (s && s.manualStatusText) || '') || '').trim();
+      if (!txt) return;
+      if (s) { s.computedStatus = s.computedStatus || s.status; s.status = 'custom'; s.manualStatusText = txt.slice(0, 60); s.statusOverridden = true; renderAll(); }
+      if (wsSend) wsSend({ type: 'markStatus', sid, status: 'custom', text: txt });
+    } else {
+      if (s) { s.computedStatus = s.computedStatus || s.status; s.status = v; s.statusOverridden = true; renderAll(); }
+      if (wsSend) wsSend({ type: 'markStatus', sid, status: v });
     }
   });
 
@@ -2017,6 +2165,24 @@
     } catch (err) {
       pushToast({ title: `${label} 失敗`, msg: err.message });
     }
+  }
+
+  // F4: copy prompt to clipboard + focus the session window + paste (no auto-Enter).
+  async function sendPromptToSession(sid, text) {
+    if (!sid || !text.trim()) return;
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(sid)}/sendPrompt`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { pushToast({ title: '送出 prompt 失敗', msg: data.error || `HTTP ${res.status}` }); return false; }
+      const out = data.stdout || '';
+      if (out.startsWith('PASTED')) pushToast({ title: '已貼到視窗', msg: '已複製+聚焦+貼上，請在該視窗確認後按 Enter 送出' });
+      else if (out.startsWith('COPIED')) pushToast({ title: '已複製 + 聚焦', msg: '自動貼上未成功，請到該視窗手動 Ctrl+V' });
+      else pushToast({ title: 'prompt 已處理', msg: '已複製到剪貼簿' });
+      return true;
+    } catch (err) { pushToast({ title: '送出 prompt 失敗', msg: err.message }); return false; }
   }
 
   // ============== Runtime ticker (smooth runtime / relative-time updates) ==============

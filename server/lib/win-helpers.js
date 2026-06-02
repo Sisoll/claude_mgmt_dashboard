@@ -67,16 +67,29 @@ function runPs(scriptName, args = []) {
   });
 }
 
-async function flashWindowForPid(pid, cwdLeaf = '') {
+async function flashWindowForPid(pid, cwdLeaf = '', hostPid = 0) {
   const args = ['-ProcessId', String(pid)];
   if (cwdLeaf) args.push('-CwdLeaf', cwdLeaf);
+  if (hostPid) args.push('-HostPid', String(hostPid));
   return runPs('flash-window.ps1', args);
 }
 
-async function focusWindowForPid(pid, cwdLeaf = '') {
+async function focusWindowForPid(pid, cwdLeaf = '', hostPid = 0) {
   const args = ['-ProcessId', String(pid)];
   if (cwdLeaf) args.push('-CwdLeaf', cwdLeaf);
+  if (hostPid) args.push('-HostPid', String(hostPid));
   return runPs('focus-window.ps1', args);
 }
 
-module.exports = { flashWindowForPid, focusWindowForPid, detectHostProcessSync };
+// F4: copy the prompt to the clipboard, focus the session's window, then paste it
+// (Ctrl+V). We deliberately do NOT auto-send (no Enter) — the user reviews & hits
+// Enter. Clipboard + focus always happen, so even if paste is blocked the user can
+// paste manually. Reuses the same window-finding as focus (incl. HostPid fast-path).
+async function sendPromptToPid(pid, text, cwdLeaf = '', hostPid = 0) {
+  const args = ['-ProcessId', String(pid), '-Text', String(text)];
+  if (cwdLeaf) args.push('-CwdLeaf', cwdLeaf);
+  if (hostPid) args.push('-HostPid', String(hostPid));
+  return runPs('send-prompt.ps1', args);
+}
+
+module.exports = { flashWindowForPid, focusWindowForPid, sendPromptToPid, detectHostProcessSync };

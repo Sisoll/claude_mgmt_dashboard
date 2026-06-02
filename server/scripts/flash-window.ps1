@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)] [int]$ProcessId,
-    [string]$CwdLeaf = ""
+    [string]$CwdLeaf = "",
+    [int]$HostPid = 0   # dashboard-known host pid → skip the slow CIM tree walk (falls back if stale)
 )
 
 # Same two-stage strategy as focus-window.ps1: walk up to host process,
@@ -52,23 +53,27 @@ function Get-ParentPid($id) {
     return [int]$p.ParentProcessId
 }
 
-$current = $ProcessId
-$hostPid = 0
-for ($i = 0; $i -lt 16 -and $current -gt 4; $i++) {
-    $p = Get-Process -Id $current -ErrorAction SilentlyContinue
-    if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) {
-        $hostPid = $current
-        break
+function Resolve-HostPid($startPid) {
+    $cur = $startPid
+    for ($i = 0; $i -lt 16 -and $cur -gt 4; $i++) {
+        $p = Get-Process -Id $cur -ErrorAction SilentlyContinue
+        if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) { return $cur }
+        $cur = Get-ParentPid $cur
     }
-    $current = Get-ParentPid $current
+    return 0
 }
 
+$hostPid = if ($HostPid -gt 0) { $HostPid } else { Resolve-HostPid $ProcessId }
 if ($hostPid -eq 0) {
     Write-Output "NOT_FOUND"
     exit 1
 }
 
 $windows = [FlashWin32]::EnumWindowsForProcess([uint32]$hostPid)
+if ($windows.Count -eq 0 -and $HostPid -gt 0) {
+    $hostPid = Resolve-HostPid $ProcessId
+    if ($hostPid -ne 0) { $windows = [FlashWin32]::EnumWindowsForProcess([uint32]$hostPid) }
+}
 if ($windows.Count -eq 0) {
     Write-Output "NOT_FOUND no_windows"
     exit 1

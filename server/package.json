@@ -1,12 +1,13 @@
 {
   "name": "claude-sessions-dashboard-server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Local server that watches alive Claude Code sessions and pushes live state to the dashboard via WebSocket.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=20"

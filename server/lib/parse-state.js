@@ -41,6 +41,18 @@ function readWaitingFlag(sid) {
   } catch { return null; }
 }
 
+// Written by the global Notification[permission_prompt] hook the instant a tool
+// permission prompt appears. Unlike the idle waiting flag this is authoritative —
+// it means "a decision is needed right now" even before the tool_use message has
+// been flushed to the JSONL (which is why permission prompts otherwise stuck on
+// "running" forever). Self-clears once newer events arrive (flag.at < lastEventTs).
+function readPermissionFlag(sid) {
+  if (!sid) return null;
+  try {
+    return JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, `${sid}.permission.flag`), 'utf8'));
+  } catch { return null; }
+}
+
 // Claude Code emits various internal "user" messages that aren't real user prompts:
 //   <local-command-caveat>...   — wrapped reminder around / commands
 //   <command-name>/clear ...    — slash-command markers
@@ -240,6 +252,14 @@ class SessionState {
     // after it completes.
     const cleanlyEnded = !!last && last.stopReason === 'end_turn';
 
+    // Highest priority: a tool permission prompt is pending RIGHT NOW (B3). Authoritative
+    // and NOT gated by cleanlyEnded — the tool_use message may not be in the JSONL yet.
+    const permFlag = readPermissionFlag(this.meta.sid);
+    if (permFlag && permFlag.at && permFlag.at > (this.lastEventTs || 0)) {
+      this._waitingSource = 'permission';
+      return 'waiting';
+    }
+
     // Notification hook flag (catches OS-level permission prompts the model can't tag).
     const flag = readWaitingFlag(this.meta.sid);
     if (!cleanlyEnded && flag && flag.at && flag.at > (this.lastEventTs || 0)) {
@@ -276,7 +296,9 @@ class SessionState {
     if (lastTurn && !lastTurn.assistantSummary && (!last || (last.ts || 0) < (lastTurn.ts || 0))) {
       return 'running';
     }
-    if (!last) return 'running';
+    // No assistant output at all + no user turn = an empty / freshly /clear'd
+    // conversation. It's idle, not running → surface as pending until the first prompt.
+    if (!last) return this.turns.length === 0 ? 'pending' : 'running';
 
     if (last.stopReason === 'end_turn') {
       const text = last.textParts.join('\n');
