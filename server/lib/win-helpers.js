@@ -1,4 +1,4 @@
-const { spawn, execFileSync } = require('child_process');
+const cp = require('child_process');
 const path = require('path');
 
 const SCRIPTS_DIR = path.join(__dirname, '..', 'scripts');
@@ -25,10 +25,10 @@ function detectHostProcessSync(pid) {
   }
   let result = null;
   try {
-    const out = execFileSync(
+    const out = cp.execFileSync(
       'powershell.exe',
       ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(SCRIPTS_DIR, 'detect-host.ps1'), '-ProcessId', String(pid)],
-      { encoding: 'utf8', timeout: DETECT_TIMEOUT_MS, stdio: ['ignore', 'pipe', 'ignore'] }
+      { encoding: 'utf8', timeout: DETECT_TIMEOUT_MS, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }
     ).trim();
     if (out.startsWith('FOUND|')) {
       const parts = out.split('|');
@@ -47,7 +47,7 @@ function detectHostProcessSync(pid) {
 function runPs(scriptName, args = []) {
   return new Promise((resolve) => {
     const scriptPath = path.join(SCRIPTS_DIR, scriptName);
-    const child = spawn('powershell.exe', [
+    const child = cp.spawn('powershell.exe', [
       '-NoProfile',
       '-ExecutionPolicy', 'Bypass',
       '-File', scriptPath,

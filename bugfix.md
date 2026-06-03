@@ -2,6 +2,9 @@
 
 > 已修的 bug，**最新在上**。每條可直接當 commit message 用。
 
+- detect-host 一直彈 PowerShell 視窗：`win-helpers.js` 的 `execFileSync` 漏 `windowsHide` → 補上；重構成可 mock + 加回歸測試（14 tests）(`server/lib/win-helpers.js`, `server/test/win-helpers.test.js`)
+- 「待定」≠「自訂」：custom 原被併入 pending 計數/篩選 → 自訂自成一類（獨立 chip + 計數 + filter）；待定/自訂卡片給專屬配色（灰/紫，原本跟 running 一樣白；自訂用新 `--custom` 紫，與分支 terracotta 區分）(`Claude_Sessions_Dashboard.html`)
+- reset 鈕「閃一下就消失」：runtime ticker 每秒覆寫整個 `.runtime`（含 reset 鈕）→ ticker 改只更新 `.runtime-time`，reset 搬到「標記狀態」下拉旁 (`Claude_Sessions_Dashboard.html`)
 - `/clear` 後 session 卡在 running：空對話 / 剛清空 = idle → 改判 **pending**（`server/lib/parse-state.js`）
 - 工具權限提示（Bash 等）不論等多久都不變「需要決定」：根因是待批准時 tool_use 還沒進 JSONL。加全域 `Notification[permission_prompt]` hook 即時寫 `<sid>.permission.flag`，server 視為權威 waiting（不受 cleanlyEnded gate）(`~/.claude` hook〔repo 外〕, `server/lib/parse-state.js`, `server/index.js`)
 - F8 後續：自訂狀態改下拉選單、顯示輸入文字、歸類為「待定」、加「待定」filter chip、reset 移到 RUNTIME 上方（原三顆直排難看）(`Claude_Sessions_Dashboard.html`)

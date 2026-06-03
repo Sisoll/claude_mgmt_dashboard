@@ -2,6 +2,18 @@
 
 Release notes（標題為主）。最新在上。
 
+## v0.1.3
+### Fixes
+- reset 鈕「閃一下就消失」（runtime ticker 改只更新 `.runtime-time`；reset 移到「標記狀態」旁）
+- 「待定」≠「自訂」：自訂自成一類（獨立 chip / 計數 / filter）；待定/自訂卡片專屬配色（灰 / 紫）
+- detect-host 一直彈 PowerShell 視窗（`execFileSync` 補 `windowsHide`）＋ 回歸測試
+
+### Features
+- topbar「關閉 dashboard」鈕（`POST /api/shutdown`）
+- topbar「重啟 dashboard」鈕（`POST /api/restart`，detached 重啟 + listen retry）
+- 齒輪設定面板 +「啟用通知」開關（localStorage 持久化）
+- `start-server.cmd` 啟動後自動開瀏覽器（Chrome→Edge）
+
 ## v0.1.2
 ### Fixes
 - `/clear` 後卡 running → 空對話改判 pending

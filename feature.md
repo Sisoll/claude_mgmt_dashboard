@@ -2,6 +2,10 @@
 
 > 已完成的功能 / 改善，**最新在上**。每條可直接當 commit message 用。
 
+- `start-server.cmd` 啟動後自動開瀏覽器（Chrome→Edge，curl 輪詢等 server 起來）(`start-server.cmd`, `open-dashboard.cmd`)
+- topbar「重啟 dashboard」鈕：`POST /api/restart` detached 重啟（VBS 靜默 launcher、windowsHide），前端重用 WS 自動重連；`server.listen` 加 EADDRINUSE retry (`server/index.js`, `Claude_Sessions_Dashboard.html`)
+- topbar「關閉 dashboard」鈕：`POST /api/shutdown` 終止 server + 確認框 + overlay/停重連 (`server/index.js`, `Claude_Sessions_Dashboard.html`)
+- 齒輪設定面板 +「啟用通知」開關（localStorage 持久化，gate `pushNotif`，預設開）(`Claude_Sessions_Dashboard.html`)
 - 卡片狀態手動下拉選單：已完成/待定/執行中/錯誤/自訂文字（reset 回自動）；自訂歸類待定、顯示輸入文字 (`Claude_Sessions_Dashboard.html`, `server/index.js`)
 - 從 dashboard 發 prompt：複製到剪貼簿 + 聚焦視窗 + 貼上（無自動 Enter）(`server/scripts/send-prompt.ps1`, `server/lib/win-helpers.js`, `server/index.js`, `Claude_Sessions_Dashboard.html`)
 - host pill 旁加「開啟視窗 / 閃工作列」快捷鈕；flash/focus 用已知 hostPid 跳過 CIM tree walk 加速（附 fallback）(`Claude_Sessions_Dashboard.html`, `server/lib/win-helpers.js`, `server/scripts/{focus,flash}-window.ps1`)

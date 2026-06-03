@@ -274,6 +274,48 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // F12: shut down the whole dashboard server. Respond first, then exit so the
+  // response + WS close frames flush. autostart only runs at Windows login, so
+  // after this the user must manually re-run start-server.cmd / .vbs.
+  if (req.method === 'POST' && url.pathname === '/api/shutdown') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ ok: true }));
+    setTimeout(() => process.exit(0), 150);
+    return;
+  }
+
+  // F19: restart in place — release the listening port, spawn a detached copy of
+  // ourselves (node + same argv), then exit. The new process becomes the server;
+  // the dashboard's WS auto-reconnect picks it up. Same chicken-egg as shutdown:
+  // this route only exists after the server has been (re)started once.
+  if (req.method === 'POST' && url.pathname === '/api/restart') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ ok: true }));
+    const { spawn } = require('child_process');
+    const path = require('path');
+    const fs = require('fs');
+    let done = false;
+    const relaunch = () => {
+      if (done) return; done = true;
+      try {
+        // Prefer the silent VBS launcher (hidden window, same as autostart) so the
+        // respawn doesn't flash a console window; fall back to a hidden node spawn.
+        const vbs = path.resolve(process.cwd(), '..', 'start-server.vbs');
+        if (fs.existsSync(vbs)) {
+          spawn('wscript', [vbs], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+        } else {
+          spawn(process.execPath, process.argv.slice(1), {
+            detached: true, stdio: 'ignore', cwd: process.cwd(), windowsHide: true,
+          }).unref();
+        }
+      } catch (e) {}
+      process.exit(0);
+    };
+    try { server.close(); } catch (e) {}   // release the port; lingering WS die on exit
+    setTimeout(relaunch, 300);             // brief grace so the child can re-bind 7878
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname.startsWith('/api/sessions/')) {
     const parts = url.pathname.split('/');
     const sid = parts[3];
@@ -366,10 +408,24 @@ wss.on('connection', (ws) => {
   ws.on('error', () => wsClients.delete(ws));
 });
 
-server.listen(PORT, HOST, () => {
+server.on('listening', () => {
   console.log(`[claude-mgmt] dashboard server listening on http://${HOST}:${PORT}`);
   registry.start();
 });
+// EADDRINUSE retry — covers the F19 restart handoff where the previous process
+// hasn't fully released the port yet. Give up (exit) after ~5s of retries.
+let listenRetries = 0;
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE' && listenRetries < 20) {
+    listenRetries++;
+    console.warn(`[claude-mgmt] port ${PORT} busy (EADDRINUSE), retry ${listenRetries}/20 in 250ms…`);
+    setTimeout(() => server.listen(PORT, HOST), 250);
+  } else {
+    console.error('[claude-mgmt] listen failed:', err && err.message);
+    process.exit(1);
+  }
+});
+server.listen(PORT, HOST);
 
 process.on('SIGINT', () => {
   registry.stop();

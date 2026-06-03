@@ -31,6 +31,11 @@
     --accent-soft: #f5e3da;
     --accent-tint: #fbf1ec;
 
+    /* custom (manual) status: violet — deliberately NOT used elsewhere (distinct from terracotta accent / branch) */
+    --custom: #7d5bb5;
+    --custom-deep: #5e4191;
+    --custom-soft: #efe8f8;
+
     /* status colors -- harmonized warm palette */
     --running: #2b6cb0;
     --running-soft: #e2ecf6;
@@ -176,7 +181,50 @@
     color: var(--text);
     border-color: var(--border-strong);
   }
+  .icon-btn-danger:hover { background: var(--error-soft); color: var(--error); border-color: var(--error); }
   .icon-btn svg { width: 15px; height: 15px; }
+
+  /* ============ Settings panel (gear dropdown) ============ */
+  .settings-wrap { position: relative; }
+  .settings-panel {
+    position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
+    min-width: 230px; padding: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow-md);
+  }
+  .settings-panel.hidden { display: none; }
+  .settings-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); padding: 4px 8px 8px; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 7px 8px; border-radius: var(--radius-sm); }
+  .settings-row:hover { background: var(--surface-2); }
+  .settings-label { font-size: 13px; color: var(--text); }
+  .settings-hint { display: block; font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+  .switch {
+    flex: none; width: 38px; height: 22px; padding: 0; cursor: pointer;
+    border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-2);
+    position: relative; transition: background 0.15s, border-color 0.15s;
+  }
+  .switch .switch-knob {
+    position: absolute; top: 50%; left: 2px; transform: translateY(-50%);
+    width: 16px; height: 16px; border-radius: 50%; background: var(--text-muted);
+    transition: left 0.15s, background 0.15s;
+  }
+  .switch.on { background: var(--accent-soft); border-color: var(--accent); }
+  .switch.on .switch-knob { left: 18px; background: var(--accent); }
+
+  /* ============ Shutdown overlay (F12) ============ */
+  #shutdown-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(40,30,15,0.55); backdrop-filter: blur(3px);
+  }
+  .shutdown-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow-md);
+    padding: 28px 32px; max-width: 420px; text-align: center;
+  }
+  .shutdown-title { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+  .shutdown-msg { font-size: 13.5px; color: var(--text-muted); line-height: 1.6; }
+  .shutdown-msg code { font-family: var(--font-mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 
   /* ============ Section title ============ */
   .section-title {
@@ -238,6 +286,19 @@
     box-shadow: 0 0 0 1px var(--error), 0 4px 16px rgba(138,58,42,0.12);
   }
   .card.is-failed-state .card-head { background: linear-gradient(180deg, var(--error-soft), transparent 80%); }
+
+  /* pending (parked) = calm gray ; custom (manual) = terracotta — distinct from running's plain white */
+  .card.is-pending {
+    border-color: var(--text-muted);
+    box-shadow: 0 0 0 1px var(--text-muted), 0 4px 14px rgba(40,30,15,0.06);
+  }
+  .card.is-pending .card-head { background: linear-gradient(180deg, var(--surface-2), transparent 80%); }
+
+  .card.is-custom {
+    border-color: var(--custom);
+    box-shadow: 0 0 0 1px var(--custom), 0 4px 16px rgba(125,91,181,0.12);
+  }
+  .card.is-custom .card-head { background: linear-gradient(180deg, var(--custom-soft), transparent 80%); }
 
   /* Persistent attention pulse — set on any running → non-running transition,
      cleared when the user interacts with the card. is-waiting already pulses via
@@ -588,6 +649,7 @@
     align-items: flex-end;
     gap: 6px;
   }
+  .status-actions { display: flex; align-items: center; gap: 6px; }
   .mini-action {
     font-family: var(--font-mono);
     font-size: 10.5px;
@@ -1212,6 +1274,8 @@
   .chip.active[data-filter="failed"]    { background: var(--error);   color: #fff; border-color: var(--error); }
   .chip[data-filter="pending"]          { background: var(--surface-2); color: var(--text-muted); border-color: var(--border); }
   .chip.active[data-filter="pending"]   { background: var(--text-muted); color: #fff; border-color: var(--text-muted); }
+  .chip[data-filter="custom"]           { background: var(--custom-soft); color: var(--custom-deep); border-color: var(--custom-soft); }
+  .chip.active[data-filter="custom"]    { background: var(--custom); color: #fff; border-color: var(--custom); }
 
   /* ============ Empty / hidden ============ */
   .card.is-hidden { display: none; }
@@ -1248,11 +1312,26 @@
       <button class="icon-btn" title="Sound on/off" id="sound-toggle">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4.5 6H2v4h2.5L8 13V3Z"/><path d="M11 6c.8.8.8 3.2 0 4"/><path d="M13 4c2 2 2 6 0 8"/></svg>
       </button>
-      <button class="icon-btn" title="Settings">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2"/><path d="M13 8a5 5 0 0 0-.1-1l1.4-1-1.5-2.6-1.6.7a5 5 0 0 0-1.7-1L9 1.5H6L5.5 3a5 5 0 0 0-1.7 1l-1.6-.7L.7 6l1.4 1a5 5 0 0 0 0 2L.7 10l1.5 2.6 1.6-.7a5 5 0 0 0 1.7 1l.5 1.6h3l.5-1.6a5 5 0 0 0 1.7-1l1.6.7 1.5-2.6-1.4-1a5 5 0 0 0 .1-1Z"/></svg>
-      </button>
+      <div class="settings-wrap">
+        <button class="icon-btn" title="設定" id="settings-btn">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2"/><path d="M13 8a5 5 0 0 0-.1-1l1.4-1-1.5-2.6-1.6.7a5 5 0 0 0-1.7-1L9 1.5H6L5.5 3a5 5 0 0 0-1.7 1l-1.6-.7L.7 6l1.4 1a5 5 0 0 0 0 2L.7 10l1.5 2.6 1.6-.7a5 5 0 0 0 1.7 1l.5 1.6h3l.5-1.6a5 5 0 0 0 1.7-1l1.6.7 1.5-2.6-1.4-1a5 5 0 0 0 .1-1Z"/></svg>
+        </button>
+        <div class="settings-panel hidden" id="settings-panel">
+          <div class="settings-title">設定</div>
+          <div class="settings-row">
+            <span class="settings-label">啟用通知<span class="settings-hint">瀏覽器桌面通知（需授權）</span></span>
+            <button class="switch" id="notify-toggle" role="switch" aria-checked="true" title="開關桌面通知"><span class="switch-knob"></span></button>
+          </div>
+        </div>
+      </div>
       <button class="icon-btn" title="New session" style="background:var(--text); color:#fff; border-color:var(--text);">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+      </button>
+      <button class="icon-btn" title="重啟 dashboard server（起新 process 取代；會短暫斷線後自動連回）" id="restart-btn">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-4"/><path d="M13.5 2.5V6H10"/></svg>
+      </button>
+      <button class="icon-btn icon-btn-danger" title="關閉 dashboard（終止 server；autostart 只在登入時跑，關了要手動重開）" id="shutdown-btn">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v6.5"/><path d="M4.7 4.2a4.5 4.5 0 1 0 6.6 0"/></svg>
       </button>
     </div>
   </header>
@@ -1282,6 +1361,7 @@
     <button class="chip" data-filter="running">執行中 <span class="count">2</span></button>
     <button class="chip" data-filter="completed">已完成 <span class="count">1</span></button>
     <button class="chip" data-filter="pending">待定 <span class="count">0</span></button>
+    <button class="chip" data-filter="custom">自訂 <span class="count">0</span></button>
     <button class="chip" data-filter="failed">錯誤 <span class="count">1</span></button>
     <div style="flex:1"></div>
     <div style="font-size:12px; color:var(--text-faint); font-family:var(--font-mono);">sorted by: status · last active</div>
@@ -1368,6 +1448,7 @@
   // ============== Audio chime ==============
   let audioCtx = null;
   let soundOn = true;
+  let notifyOn = (localStorage.getItem('notifyOn') ?? 'true') === 'true';
   function ensureCtx() {
     if (!audioCtx) {
       try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -1473,10 +1554,40 @@
   $('#perm-dismiss').addEventListener('click', () => banner.classList.add('hidden'));
 
   function pushNotif(title, body) {
+    if (!notifyOn) return;
     if ('Notification' in window && Notification.permission === 'granted') {
       try { new Notification(title, { body, silent: true }); } catch(e) {}
     }
   }
+
+  // ============== Settings panel (gear dropdown) ==============
+  const settingsBtn = $('#settings-btn');
+  const settingsPanel = $('#settings-panel');
+  const notifyToggle = $('#notify-toggle');
+  function syncNotifyToggle() {
+    notifyToggle.classList.toggle('on', notifyOn);
+    notifyToggle.setAttribute('aria-checked', notifyOn ? 'true' : 'false');
+  }
+  syncNotifyToggle();
+  settingsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    settingsPanel.classList.toggle('hidden');
+  });
+  document.addEventListener('click', (e) => {
+    if (settingsPanel.classList.contains('hidden')) return;
+    if (!e.target.closest('#settings-panel') && !e.target.closest('#settings-btn')) {
+      settingsPanel.classList.add('hidden');
+    }
+  });
+  notifyToggle.addEventListener('click', () => {
+    notifyOn = !notifyOn;
+    localStorage.setItem('notifyOn', notifyOn ? 'true' : 'false');
+    syncNotifyToggle();
+    if (notifyOn && 'Notification' in window) {
+      if (Notification.permission === 'default') Notification.requestPermission();
+      else if (Notification.permission === 'denied') pushToast({ title: '通知被瀏覽器封鎖', msg: '請到瀏覽器網站設定允許此頁的通知' });
+    }
+  });
 
   // ============== Toast ==============
   function pushToast({ title, msg }) {
@@ -1746,7 +1857,9 @@
 
     const stateClass = isWaiting ? 'is-waiting'
                      : isCompleted ? 'is-completed'
-                     : isFailed ? 'is-failed-state' : '';
+                     : isFailed ? 'is-failed-state'
+                     : status === 'pending' ? 'is-pending'
+                     : status === 'custom' ? 'is-custom' : '';
 
     const attentionClass = attentionSids.has(s.sid) && status !== 'running' ? 'needs-attention' : '';
 
@@ -1788,17 +1901,19 @@
       <span class="status ${status}" title="${s.statusOverridden ? 'manual override' : 'auto-detected'}">
         <span class="dot"></span>${statusLabel}${s.statusOverridden ? '<span class="status-override-tag">manual</span>' : ''}
       </span>
-      <select class="status-select" title="手動設定狀態（新對話進來會自動解除）">
-        <option value="">＋ 標記狀態…</option>
-        <option value="completed">已完成</option>
-        <option value="pending">待定</option>
-        <option value="running">執行中</option>
-        <option value="failed">錯誤</option>
-        <option value="__custom">✎ 自訂文字…</option>
-      </select>
+      <div class="status-actions">
+        <select class="status-select" title="手動設定狀態（新對話進來會自動解除）">
+          <option value="">＋ 標記狀態…</option>
+          <option value="completed">已完成</option>
+          <option value="pending">待定</option>
+          <option value="running">執行中</option>
+          <option value="failed">錯誤</option>
+          <option value="__custom">✎ 自訂文字…</option>
+        </select>
+        <button class="mini-action" data-action="resetState" title="清掉手動 override，從 JSONL 整個重算（砍掉重建這個 session 的狀態）">↻ reset</button>
+      </div>
     </div>
     <div class="runtime">
-      <button class="mini-action" data-action="resetState" title="清掉手動 override，重新從 JSONL 重算">↻ reset</button>
       <div class="runtime-time"><span class="label">runtime</span>${runtime}</div>
     </div>
   </header>
@@ -1902,10 +2017,9 @@
 
   function updateStats() {
     const sessions = Array.from(liveSessions.values());
-    const counts = { all: sessions.length, running: 0, waiting: 0, completed: 0, failed: 0, pending: 0 };
+    const counts = { all: sessions.length, running: 0, waiting: 0, completed: 0, failed: 0, pending: 0, custom: 0 };
     for (const s of sessions) {
-      if (counts[s.status] !== undefined) counts[s.status]++;
-      if (s.status === 'custom') counts.pending++;   // custom 歸類為待定
+      if (counts[s.status] !== undefined) counts[s.status]++;   // custom 自成一類（B6/A），不再併入 pending
     }
     $('#stat-total').textContent = counts.all;
     $('#stat-running').textContent = counts.running;
@@ -1923,8 +2037,7 @@
     currentFilter = f;
     $$('.card').forEach(card => {
       const s = card.getAttribute('data-status');
-      // 待定(pending) chip also catches custom (custom 歸類為待定)
-      const match = f === 'all' || f === s || (f === 'pending' && s === 'custom');
+      const match = f === 'all' || f === s;   // 'custom' chip 經由 f===s 命中（B6/A：不再混入 pending）
       card.classList.toggle('is-hidden', !match);
     });
   }
@@ -2194,7 +2307,7 @@
         const sid = card.getAttribute('data-sid');
         const s = liveSessions.get(sid);
         if (!s) return;
-        const runtimeEl = card.querySelector('.runtime');
+        const runtimeEl = card.querySelector('.runtime-time');
         if (runtimeEl) {
           const elapsed = (s.runtimeMs || 0) + (now - (s._receivedAt || now));
           runtimeEl.innerHTML = `<span class="label">runtime</span>${formatRuntime(elapsed)}`;
@@ -2302,6 +2415,7 @@
   let wsSend = null;
   let reconnectDelay = 1000;
   let offlineBannerShown = false;
+  let shuttingDown = false;
 
   function connect() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -2358,6 +2472,7 @@
   }
 
   function scheduleReconnect() {
+    if (shuttingDown) return;
     if (!offlineBannerShown) {
       offlineBannerShown = true;
       pushToast({ title: 'Server 離線', msg: '無法連到 dashboard server (127.0.0.1:7878)，將自動重連…' });
@@ -2365,6 +2480,35 @@
     setTimeout(connect, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 1.5, 10000);
   }
+
+  // ============== Restart dashboard (F19) ==============
+  $('#restart-btn').addEventListener('click', async () => {
+    if (!confirm('重啟 dashboard server？\n\n會起一個新 process 取代目前的；畫面會短暫斷線後自動連回。')) return;
+    let ok = false;
+    try { const r = await fetch('/api/restart', { method: 'POST' }); ok = r.ok; } catch {}
+    if (!ok) { pushToast({ title: '重啟失敗', msg: 'server 沒回應 /api/restart（可能還是舊版 process）—— 請先重啟一次 server 載入新版' }); return; }
+    pushToast({ title: '重啟中…', msg: 'server 正在重啟，連線會自動恢復（會短暫顯示離線）' });
+    // 不設 shuttingDown —— 讓既有 scheduleReconnect 在新 server 起來後自動連回
+  });
+
+  // ============== Shutdown dashboard (F12) ==============
+  $('#shutdown-btn').addEventListener('click', async () => {
+    if (!confirm('關閉整個 dashboard server？\n\n會終止 node 程序、所有即時監看停止。\nautostart 只在 Windows 登入時跑 —— 關閉後需手動執行 start-server.cmd / start-server.vbs 再重新整理本頁。')) return;
+    let ok = false;
+    try { const r = await fetch('/api/shutdown', { method: 'POST' }); ok = r.ok; } catch {}
+    if (!ok) { pushToast({ title: '關閉失敗', msg: 'server 沒回應 /api/shutdown（可能還是舊版 process）—— 請先重啟一次 server 載入新版' }); return; }
+    shuttingDown = true;
+    try { if (ws) ws.close(); } catch {}
+    let el = document.getElementById('shutdown-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'shutdown-overlay';
+      el.innerHTML = '<div class="shutdown-card"><div class="shutdown-title">Dashboard 已關閉</div>'
+        + '<div class="shutdown-msg">server 已終止。重開請執行 <code>start-server.cmd</code> 或 <code>start-server.vbs</code>，再重新整理本頁。</div></div>';
+      document.body.appendChild(el);
+    }
+    el.style.display = 'flex';
+  });
 
   connect();
 })();
