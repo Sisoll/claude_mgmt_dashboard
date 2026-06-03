@@ -91,7 +91,7 @@ JSONL contains Claude Code's internal wrappers (`<command-name>`, `<local-comman
 ## Conventions
 
 - **No build step**, no transpilation. Plain CommonJS Node, vanilla JS dashboard. Keep it that way.
-- **Dashboard HTML is intentionally one self-contained file** (~2100 lines, warm cream + terracotta palette). UI was hand-designed; don't restructure styles or layout without explicit ask. Adding behavior to the embedded `<script>` block is fine.
+- **Dashboard UI is modular but still no-build**: `web/dashboard.html` (markup shell) + `web/ui/styles.css` + `web/ui/app.js` (native ES module via `<script type="module">`). No bundler, no framework, no transpilation — the Node server serves `/ui/*` directly (`Cache-Control: no-store`). UI was hand-designed (warm cream + terracotta); don't restructure styles or layout without explicit ask. `app.js` is currently one module (the original IIFE moved out verbatim); finer splitting into ws/render/status/host/… is a planned follow-up — see `docs/PLAN-v1.0.0-tauri.md` §M0.5.
 - **All file paths assume `~/.claude/...`** — use `os.homedir()`, not env hacks.
 - **Windows-only**. Don't add cross-platform shims for the PowerShell helpers; future port target is Rust via `windows-rs`, not POSIX.
 - **No git remote**: this repo is not a git repository (no `.git`). The global session-startup git-fetch flow does not apply here.

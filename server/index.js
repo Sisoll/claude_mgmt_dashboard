@@ -257,6 +257,30 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Static assets for the modularized UI (ui/styles.css, ui/app.js, …). The dashboard
+  // HTML is no longer self-contained — CSS + ES-module JS live under web/ui/. Served
+  // with no-store for the same hand-edit-friendly reason as the HTML itself.
+  if (req.method === 'GET' && url.pathname.startsWith('/ui/')) {
+    const webDir = path.resolve(__dirname, '..', 'web');
+    const filePath = path.resolve(webDir, url.pathname.replace(/^\/+/, ''));
+    if (filePath !== webDir && !filePath.startsWith(webDir + path.sep)) {
+      res.writeHead(403); res.end('forbidden'); return; // path-traversal guard
+    }
+    try {
+      const body = fs.readFileSync(filePath);
+      const ext = path.extname(filePath);
+      const type = ext === '.css' ? 'text/css; charset=utf-8'
+        : ext === '.js' ? 'text/javascript; charset=utf-8'
+        : ext === '.svg' ? 'image/svg+xml'
+        : 'application/octet-stream';
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });
+      res.end(body);
+    } catch (err) {
+      res.writeHead(404); res.end('asset not found: ' + err.message);
+    }
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/sessions') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(fullSnapshot()));
