@@ -2,6 +2,10 @@
 
 > 已完成的功能 / 改善，**最新在上**。每條可直接當 commit message 用。
 
+- F18 ctx remain % 改 native 自算：statusline 為主、JSONL usage（input+cache_read+cache_creation ÷ model context window）估算為 fallback，消除 `statusline_<sid>_ctx.tmp` 硬依賴；附 10 個 node:test (`server/lib/parse-state.js`, `server/lib/usage.js`, `server/index.js`, `server/test/usage.test.js`)
+- F18 缺依賴優雅降級：quota 面板缺 statusline 改顯示提示並指向 SETUP.md；status 缺 hook 退 stuck-tool + status-tag heuristic（既有，已文件化）(`Claude_Sessions_Dashboard.html`)
+- F18 前置作業文件化：新增 `SETUP.md`（依賴速查表 + 可直接照抄的 3 dashboard hooks + statusline 腳本 + settings.json 掛法 + 驗證 checklist；給「別人 / 未來的 Claude」上手）；README 加「選配增強」段指過去 (`SETUP.md`, `README.md`)
+
 - `start-server.cmd` 啟動後自動開瀏覽器（Chrome→Edge，curl 輪詢等 server 起來）(`start-server.cmd`, `open-dashboard.cmd`)
 - topbar「重啟 dashboard」鈕：`POST /api/restart` detached 重啟（VBS 靜默 launcher、windowsHide），前端重用 WS 自動重連；`server.listen` 加 EADDRINUSE retry (`server/index.js`, `Claude_Sessions_Dashboard.html`)
 - topbar「關閉 dashboard」鈕：`POST /api/shutdown` 終止 server + 確認框 + overlay/停重連 (`server/index.js`, `Claude_Sessions_Dashboard.html`)

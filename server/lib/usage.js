@@ -61,6 +61,27 @@ function getQuotas() {
   };
 }
 
+// Context-window size (in tokens) for a given model id. Standard Claude models are
+// 200k; the "[1m]" 1-million-token variants are 1M. Returns null for an unknown/empty
+// model so the caller can fall back instead of guessing.
+function contextWindowFor(model) {
+  if (!model || typeof model !== 'string') return null;
+  if (/\[1m\]|[-_]1m\b/i.test(model)) return 1_000_000;
+  return 200_000; // default for all current Claude models
+}
+
+// Native-derive ctx-remain % from the latest request's input-token count (see
+// parse-state.js#lastContextTokens), with no dependency on the statusline tmp file.
+// remain% = round(100 * (1 - tokens/window)), clamped to 0..100. Returns null when it
+// can't be computed (no tokens yet, or unknown model) so the caller hides the panel.
+function ctxRemainPctFromTokens(contextTokens, model) {
+  if (!Number.isFinite(contextTokens) || contextTokens <= 0) return null;
+  const window = contextWindowFor(model);
+  if (!window) return null;
+  const remain = Math.round(100 * (1 - contextTokens / window));
+  return Math.max(0, Math.min(100, remain));
+}
+
 function readCtxRemainForSession(sid) {
   if (!sid) return null;
   const file = path.join(CLAUDE_DIR, `statusline_${sid}_ctx.tmp`);
@@ -72,4 +93,4 @@ function readCtxRemainForSession(sid) {
   } catch { return null; }
 }
 
-module.exports = { getQuotas, readCtxRemainForSession };
+module.exports = { getQuotas, readCtxRemainForSession, ctxRemainPctFromTokens, contextWindowFor };

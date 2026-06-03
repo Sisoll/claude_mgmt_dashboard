@@ -1338,7 +1338,7 @@
 
   <!-- Usage quota panel -->
   <div class="quota-panel unavailable" id="quota-panel">
-    <span>—— quota 資料尚未啟用 ——</span>
+    <span>—— quota 面板需 statusline hook（見 SETUP.md）——</span>
   </div>
 
   <!-- Permission banner -->
@@ -2360,7 +2360,7 @@
     const data = lastQuotaData;
     if (!data || !data.available) {
       quotaEl.className = 'quota-panel unavailable';
-      quotaEl.innerHTML = '<span>—— quota 資料尚未啟用（statusline 還沒被 Claude Code 觸發過）——</span>';
+      quotaEl.innerHTML = '<span>—— 無 quota 資料：需安裝 statusline hook（5h/7d 配額無法 native 取得，見 SETUP.md）——</span>';
       return;
     }
     const now = Date.now();

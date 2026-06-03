@@ -9,7 +9,7 @@ const { JsonlTailer } = require('./lib/jsonl-tail');
 const { SessionState } = require('./lib/parse-state');
 const sidecar = require('./lib/sidecar');
 const { flashWindowForPid, focusWindowForPid, sendPromptToPid } = require('./lib/win-helpers');
-const { getQuotas, readCtxRemainForSession } = require('./lib/usage');
+const { getQuotas, readCtxRemainForSession, ctxRemainPctFromTokens } = require('./lib/usage');
 
 const PORT = Number(process.env.PORT || 7878);
 const HOST = '127.0.0.1';
@@ -83,8 +83,17 @@ function snapshotFor(sid) {
   if (typeof meta.viewedSince === 'number') snap.viewedSince = meta.viewedSince;
   if (meta.aiSummary) snap.aiSummary = meta.aiSummary;
   if (!snap.name) snap.name = deriveAutoName(snap);
+  // Ctx-remain %: prefer the statusline tmp value (Claude Code's authoritative
+  // context_window.remaining_percentage), fall back to a native estimate derived from
+  // JSONL usage tokens when no statusline is installed. Either way the panel hides if
+  // both are unavailable (frontend checks typeof === 'number').
   const ctx = readCtxRemainForSession(sid);
-  if (ctx) snap.ctxRemainPct = ctx.value;
+  if (ctx) {
+    snap.ctxRemainPct = ctx.value;
+  } else {
+    const nativePct = ctxRemainPctFromTokens(snap.contextTokens, snap.model);
+    if (nativePct != null) snap.ctxRemainPct = nativePct;
+  }
 
   // Manual status override (reset / pending / custom / etc.) — valid only while no new JSONL activity has happened since.
   if (meta.manualStatus && meta.manualStatusAt && meta.manualStatusAt > (snap.lastActivity || 0)) {

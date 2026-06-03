@@ -4,7 +4,7 @@
 > **讀取規則**：平常只讀下方「Roadmap」即可，**不要讀全份**；要動某項時再讀該項 Details。
 > **完成後**：發版時把該項從本檔移除，寫進 `bugfix.md` / `feature.md`（見 `release` skill）。
 > **標記**：`[BUG]` = 修錯行為；`[FEAT]` = 新功能或改善。
-> **目標版本**：下批發 **v0.1.4**（結構整理；v0.1.3 已發）。
+> **目標版本**：下批發 **v0.1.5**（結構整理 + HTML 模組化；**本版本 / 進行中**）。v0.1.4（F18 可攜性 / 上手）已發。
 > **大版規劃**：**V1.0.0 = HTML + Tauri 並存且功能對等（Tauri ⊇ HTML）** → 詳見 [`PLAN-v1.0.0-tauri.md`](PLAN-v1.0.0-tauri.md)（未動工）。
 
 ## Roadmap（依版本分配）
@@ -12,7 +12,7 @@
 > 原則：每版聚焦一主題、約 2–4 項，不包山包海。`✅`＝已完成待 commit/release。
 > `[BUG]` 基本歸「當下版本」修；`[FEAT]` 分散到後續版本。詳情看下方 Details。
 
-### v0.1.4 — 結構整理 + HTML 模組化（chore，獨立版；待確認）
+### v0.1.5 — 結構整理 + HTML 模組化（chore，獨立版；本版本 / 進行中）
 - C1 `[CHORE]` repo 重構：root 精簡 + 依用途切 `web/` `server/` `scripts/` `docs/`；連帶修所有路徑引用 + README/CLAUDE.md/release skill → 見 Details
 - M0.5 `[CHORE]` HTML 拆 no-build ES modules（從 V1 計畫提前到此版；搬進 `web/` 時順手拆）→ 見 PLAN §M0.5
 - 做法：**先 commit v0.1.3** → 再做本版，**內部分兩 commit**（① C1 純搬移 ② M0.5 模組化），保 git rename 追蹤 + 可 bisect。M0.5 較高風險、無前端自動測 → 靠 browser smoke。
@@ -30,10 +30,6 @@
 
 #### v0.2.3 — 資訊密度
 - F11 `[FEAT]` 每個 prompt 的 token 消耗「小眼睛」
-
-### v0.3.x — 可攜性 / 上手（降低對個人環境的隱性依賴）
-> 主軸：把 dashboard 偷偷依賴的 user-level 設定講清楚／文件化，讓「不是你」也能裝起來、或讓未來的 Claude session 能自動建置。是邁向 V1.0.0 散佈的前置。
-- F18 `[FEAT]` 前置作業文件化（user-level hooks + statusline + status-tag 協定）＋ 缺依賴時優雅降級
 
 ### 未定版（floating）
 - B4  `[BUG]` ⛔ 偶發狀態回歸 —— 需 repro，重現才排進版本
@@ -110,27 +106,6 @@
 - ⚠️ **實務發現（2026-06-03，使用者實測）**：Claude 常把 compile/test 包成**複合指令**，例如 `mvn -q compile 2>&1 | tail -6; echo "COMPILE_EXIT=${PIPESTATUS[0]}"; ls -1 target/...`。現有硬 deny 會擋任何 `|`/`;`/`>`/`&` → 這類**即使 F16 做好也不會自動過**（F16 只放單一乾淨指令如 `mvn -q compile`）。→ F16 要決定：(a) 維持只放單一乾淨指令（安全但實用性打折，多數實際 prompt 仍會跳）；或 (b) 特例放行「build/test 主指令 + 純讀取尾管（`| tail`/`| head`/`| grep`）+ `; echo`/`; ls` 這類無害收尾」的安全組合 pattern。這是 F16 實用度的關鍵設計點。
 - 待實作時決定：開關全域（一個 flag、所有 session）還是 per-session（hook 有 session_id 可比對）？「抓檔案」要含 git pull/curl 嗎？沿用 `auto-approve.enabled` 還是獨立 `auto-approve-build.enabled`（建議獨立，風險分層）。
 
-### F18 `[FEAT]` 前置作業 / 依賴文件化（給「別人 / 未來的 Claude」上手用）
-- 需求：dashboard 隱性依賴一堆 repo 外的 user-level 設定，別人沒有就會壞或靜默無作用。要補文件（README 補段 + 一份獨立 SETUP/prereq .md，**主要給 Claude 照著建置**）。
-- 建議形式：**獨立 `SETUP.md`（或 `.claude/SETUP.md`）放完整前置作業**（份量大、含 hook 腳本內容），README 只加一段「Prerequisites」指過去（保持 README 精簡）。文件「主要針對 Claude」→ 寫成 Claude 可照著執行的 checklist／可附 setup 腳本，讓未來 Claude 在新機器上自動建置 `~/.claude/` 環境。
-- 要文件化 / 處理的外部依賴（本 session 盤到的）：
-  1. 全域 hooks（`~/.claude/settings.json` + `~/.claude/scripts/`）：`dashboard-notification.sh`（Notification→`<sid>.waiting.flag`）、`dashboard-stop.sh`（Stop→`.stop.flag`）、`dashboard-permission.sh`（permission_prompt→`.permission.flag`）。
-  2. **statusline hook（關鍵）**：quota 面板（5h/7d）+ ctx remain 讀 `~/.claude/statusline_*_5h.tmp`/`_7d.tmp`/`statusline_<sid>_ctx.tmp`，由使用者自訂 statusline 寫出。**別人沒有 → 這些功能靜默無資料**。要文件化「怎麼裝這個 statusline」＋ 缺檔時 dashboard **優雅降級**（隱藏面板而非顯示壞掉）。
-  3. status-tag 協定（`【完成】/【待決】/【失敗】`，在 user 全域 CLAUDE.md）：狀態偵測優先吃 tag，沒有退 heuristic（可動但變差）。要說明。
-  4. `~/.claude/sessions/<pid>.json` pid markers 來源（確認 CC 原生還是 hook 寫的）。
-  5. 本專案 SessionStart todo hook（`.claude/settings.json` + `show-todo.sh`，目前 gitignored、local）。
-- 子項（偏 code，非純文件）：**缺依賴時優雅降級** —— statusline tmp 不存在就隱藏 quota/ctx，別顯示空白／壞掉。
-- **做法（使用者提三選一 → 建議 hybrid，2026-06-03）**：
-  1. （文件）SETUP.md + README 段。
-  2. （setup prompt）給 Claude 可照著問使用者 / 建置的互動 prompt。
-  3. （native-derive）⭐ 改 code 直接從原生內容取得 → 徹底消除依賴，最理想。
-  - 建議優先序：**能 native-derive 就 derive（消依賴）→ 不能的優雅降級 → 真的消不掉才用 setup-prompt + 文件**。
-- **可行性盤查（2026-06-03 實查）**：
-  - **ctx remain %**：✅ **可 native 自算** —— JSONL 每則 assistant `usage` 帶 `cache_read_input_tokens`(+input+cache_creation) ≈ 當前 context tokens，除以該 model context window 即得 %。→ 可直接砍掉 `statusline_<sid>_ctx.tmp` 依賴。
-  - **status flags（waiting/permission）**：◐ 大致 native —— 已有 stuck-tool heuristic + status-tag；hook 只是加速 / 補抓 OS permission prompt。沒 hook → 優雅降級。
-  - **5h/7d quota**：❌ **JSONL 沒有** —— 來自使用者自訂 `~/.claude/statusline-command.sh`（從別處取，非 JSONL）。**消不掉**：找原生 quota 來源、或保留 statusline + 文件化 + 缺檔隱藏面板。
-- 版本：放 **v0.3.x**，且**列為 V1.0.0「開工前」gate**（使用者修正 2026-06-03：要在「1.0 **開始之前**」就處理好，不是結尾前）—— 即 **v0.3.x 必須完成才開始 V1.0.0 / Tauri**（不能在隱性個人依賴的地基上蓋散佈版）。內容：ctx 改 native、quota 走文件 / setup-prompt + 優雅降級、status 降級。可選：v0.1.3 先補一句 README caveat 讓 repo 現在就誠實。
-
 ### C1 `[CHORE]` 倉庫結構整理（root 精簡 + 依用途分資料夾）
 - 需求：root 盡量乾淨；其餘依功能/目的/類型切資料夾。調整後同步修 README / CLAUDE.md 等。
 - 提案 layout：root 只留 `README.md` / `CLAUDE.md` / `.gitignore` + 資料夾 `web/` `server/` `scripts/` `docs/` `.claude/`
@@ -147,8 +122,8 @@
   - `README.md` / `CLAUDE.md` 的檔案結構與路徑說明
   - PS helpers 留 `server/` → `win-helpers.js` 路徑**不動**（刻意）
 - ⚠️ `CLAUDE.md` 必須留 root（CC 自動讀 `<repo>/CLAUDE.md`）。
-- 版本：**獨立 v0.1.4**（chore，pure-move commit），**先 commit v0.1.3 再做**，別跟功能 commit 混。alt：`v0.2.0`（想用 minor 凸顯）。
-- ⚠️ 待確認：layout（PS helpers 去留、changelog 收 docs/）+ 是否走 v0.1.4 + 先 commit v0.1.3。
+- 版本：**獨立 v0.1.5**（chore，pure-move commit），別跟功能 commit 混。alt：`v0.2.0`（想用 minor 凸顯）。
+- ⚠️ 待確認：layout（PS helpers 去留、changelog 收 docs/）+ 是否走 v0.1.5。
 
 ### B4 `[BUG]` 狀態偵測偶發回歸（狀況不明）
 - 現象：某個已修的狀態判斷在某些情況又出現，無穩定 repro。

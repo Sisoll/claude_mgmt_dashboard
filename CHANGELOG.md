@@ -2,6 +2,12 @@
 
 Release notes（標題為主）。最新在上。
 
+## v0.1.4
+### Features
+- F18 前置作業文件化：新增 `SETUP.md`（依賴速查表 + 可照抄的 hook/statusline 腳本 + settings.json 掛法 + 驗證 checklist）＋ README「選配增強」段
+- ctx remain % 改 native 自算（消 `statusline_<sid>_ctx.tmp` 硬依賴；statusline 為主、JSONL usage 估算為 fallback）；附 10 個 node:test
+- 缺依賴優雅降級：quota 面板缺 statusline 顯示提示並指向 SETUP.md；status 缺 hook 退 stuck-tool + status-tag heuristic
+
 ## v0.1.3
 ### Fixes
 - reset 鈕「閃一下就消失」（runtime ticker 改只更新 `.runtime-time`；reset 移到「標記狀態」旁）

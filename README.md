@@ -13,6 +13,8 @@
 - **Node.js ≥ 20**（`node --version` 確認；用了 `node --watch` 與多處 optional chaining）
 - **Claude Code 本體已安裝且至少跑過一次** —— dashboard 讀的是 `~/.claude/sessions/` 與 `~/.claude/projects/`，沒這個就是空白頁面（不會 crash，但你會以為它壞了）
 
+> **選配增強（不裝會優雅降級，不會壞）**：5h/7d 配額面板、更即時的「需要決定」偵測、最準的狀態判定，分別依賴使用者層級的 statusline / hooks / status-tag 協定（都在 repo 外）。完整安裝步驟（含可直接照抄的腳本）＋「缺哪項會怎樣」速查表見 **[`SETUP.md`](SETUP.md)**。ctx 剩餘 % 已 native 化，沒 statusline 也會顯示估算值。
+
 ### 安裝 & 啟動
 
 ```bash

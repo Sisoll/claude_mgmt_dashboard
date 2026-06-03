@@ -105,6 +105,11 @@ class SessionState {
     // is derived from this so a cleared session doesn't show a 72h runtime.
     this.firstEventTs = null;
     this.tokens = { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
+    // Tokens fed into the model on the LATEST assistant request (input + both cache
+    // tiers) ≈ current context-window occupancy. Overwritten each assistant message
+    // (we want the most recent, not a sum). Used to native-derive ctx-remain % when
+    // the statusline tmp file is absent — see lib/usage.js#ctxRemainPctFromTokens.
+    this.lastContextTokens = null;
     this.gitBranch = null;
     this.lastError = null;
     this.turns = [];
@@ -187,6 +192,13 @@ class SessionState {
     this.tokens.output += usage.output_tokens || 0;
     this.tokens.cacheRead = Math.max(this.tokens.cacheRead, usage.cache_read_input_tokens || 0);
     this.tokens.cacheCreate = Math.max(this.tokens.cacheCreate, usage.cache_creation_input_tokens || 0);
+    // Current context occupancy = everything sent as input on this request. The API's
+    // input_tokens already counts system prompt + tool schemas + full history, so this
+    // sum is a faithful proxy for "tokens currently in the context window".
+    const ctxTokens = (usage.input_tokens || 0)
+      + (usage.cache_read_input_tokens || 0)
+      + (usage.cache_creation_input_tokens || 0);
+    if (ctxTokens > 0) this.lastContextTokens = ctxTokens;
   }
 
   _openToolUse(tu, ts) {
@@ -390,6 +402,7 @@ class SessionState {
       permissionMode: this.permissionMode,
       model: this.model,
       modelLabel: shortenModel(this.model),
+      contextTokens: this.lastContextTokens,
     };
   }
 }
