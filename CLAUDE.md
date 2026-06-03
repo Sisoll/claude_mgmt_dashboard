@@ -19,7 +19,7 @@ cd server && node --watch index.js
 PORT=9000 node index.js
 ```
 
-- Dashboard URL: `http://127.0.0.1:7878/` (serves `Claude_Sessions_Dashboard.html`)
+- Dashboard URL: `http://127.0.0.1:7878/` (serves `web/dashboard.html`)
 - WebSocket: same host/port, root path
 - `start-server.cmd` — visible console for debugging
 - `start-server.vbs` — silent autostart (used by Windows Startup shortcut)

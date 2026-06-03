@@ -13,7 +13,7 @@
 - **Node.js ≥ 20**（`node --version` 確認；用了 `node --watch` 與多處 optional chaining）
 - **Claude Code 本體已安裝且至少跑過一次** —— dashboard 讀的是 `~/.claude/sessions/` 與 `~/.claude/projects/`，沒這個就是空白頁面（不會 crash，但你會以為它壞了）
 
-> **選配增強（不裝會優雅降級，不會壞）**：5h/7d 配額面板、更即時的「需要決定」偵測、最準的狀態判定，分別依賴使用者層級的 statusline / hooks / status-tag 協定（都在 repo 外）。完整安裝步驟（含可直接照抄的腳本）＋「缺哪項會怎樣」速查表見 **[`SETUP.md`](SETUP.md)**。ctx 剩餘 % 已 native 化，沒 statusline 也會顯示估算值。
+> **選配增強（不裝會優雅降級，不會壞）**：5h/7d 配額面板、更即時的「需要決定」偵測、最準的狀態判定，分別依賴使用者層級的 statusline / hooks / status-tag 協定（都在 repo 外）。完整安裝步驟（含可直接照抄的腳本）＋「缺哪項會怎樣」速查表見 **[`SETUP.md`](docs/SETUP.md)**。ctx 剩餘 % 已 native 化，沒 statusline 也會顯示估算值。
 
 ### 安裝 & 啟動
 
@@ -89,7 +89,8 @@ Claude Code 的 `/clear` 會換新 sessionId 與新 JSONL，但 `<pid>.json` mar
 
 ```
 claude_mgmt/
-├── Claude_Sessions_Dashboard.html   單一檔的前端（warm cream + terracotta）
+├── web/
+│   └── dashboard.html               單一檔的前端（warm cream + terracotta）
 ├── server/
 │   ├── index.js                     HTTP + WebSocket + 動作 dispatcher
 │   ├── lib/
@@ -97,14 +98,15 @@ claude_mgmt/
 │   │   ├── jsonl-tail.js            fs.watch 增量讀 JSONL
 │   │   ├── parse-state.js           JSONL 事件 → SessionState 快照
 │   │   ├── sidecar.js               <sid>.dashboard.json 讀寫
-│   │   ├── usage.js                 statusline_*.tmp 解析（quota / ctx）
+│   │   ├── usage.js                 statusline_*.tmp 解析（quota）+ ctx native 估算
 │   │   └── win-helpers.js           PowerShell helper 包裝
 │   ├── scripts/
 │   │   ├── detect-host.ps1          走 process tree 找 host（IDE / 終端機）
 │   │   ├── flash-window.ps1         工作列閃橘
 │   │   ├── focus-window.ps1         跳到對應視窗（IntelliJ 多視窗用 EnumWindows + title）
 │   │   └── send-prompt.ps1          複製 + 聚焦 + 貼上 prompt（不自動 Enter）
-│   └── test/                        node:test 單元測試（parse-state / win-helpers）
+│   └── test/                        node:test 單元測試（parse-state / usage / win-helpers）
+├── docs/                            todo / CHANGELOG / bugfix / feature / SETUP / PLAN-v1.0.0-tauri（文件）
 ├── start-server.cmd                 手動啟動（visible console；會自動開瀏覽器）
 ├── open-dashboard.cmd               等 server 起來後開瀏覽器（Chrome → Edge）
 ├── start-server.vbs                 靜默啟動（給 autostart 用）

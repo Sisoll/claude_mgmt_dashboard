@@ -13,7 +13,7 @@ const { getQuotas, readCtxRemainForSession, ctxRemainPctFromTokens } = require('
 
 const PORT = Number(process.env.PORT || 7878);
 const HOST = '127.0.0.1';
-const DASHBOARD_HTML = path.resolve(__dirname, '..', 'Claude_Sessions_Dashboard.html');
+const DASHBOARD_HTML = path.resolve(__dirname, '..', 'web', 'dashboard.html');
 
 const registry = new SessionRegistry();
 const tailers = new Map();
