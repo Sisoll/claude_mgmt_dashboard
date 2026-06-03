@@ -2,6 +2,11 @@
 
 Release notes（標題為主）。最新在上。
 
+## v0.1.5
+### Chore
+- C1 repo 結構整理：dashboard→`web/`、文件→`docs/`（git rename 追蹤）；修全部路徑引用，launchers 留 root、PS helpers 留 server/scripts/
+- M0.5 HTML 模組化（no-build）：拆 `web/ui/{styles.css,app.js}`（原生 ES module）+ server `/ui/*` 靜態服務；CLAUDE.md 單檔條款更新
+
 ## v0.1.4
 ### Features
 - F18 前置作業文件化：新增 `SETUP.md`（依賴速查表 + 可照抄的 hook/statusline 腳本 + settings.json 掛法 + 驗證 checklist）＋ README「選配增強」段

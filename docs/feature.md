@@ -2,6 +2,8 @@
 
 > 已完成的功能 / 改善，**最新在上**。每條可直接當 commit message 用。
 
+- v0.1.5 M0.5 HTML 模組化（no-build）：dashboard.html 拆成 markup 殼 + `web/ui/styles.css` + `web/ui/app.js`（原生 ES module，逐字外移、零邏輯改）；server 加 `/ui/*` 靜態服務（正確 MIME + no-store + path-traversal guard）；CLAUDE.md 單檔條款更新 (`web/dashboard.html`, `web/ui/styles.css`, `web/ui/app.js`, `server/index.js`, `CLAUDE.md`)
+- v0.1.5 C1 repo 結構整理：dashboard→`web/dashboard.html`、文件→`docs/`（todo/CHANGELOG/bugfix/feature/PLAN/SETUP），git rename 追蹤；修全部路徑引用（server/index.js、README、CLAUDE.md、本地 show-todo.sh + release skill）；launchers 留 root、PS helpers 留 server/scripts/ (`web/`, `docs/`, `server/index.js`, `README.md`, `CLAUDE.md`)
 - F18 ctx remain % 改 native 自算：statusline 為主、JSONL usage（input+cache_read+cache_creation ÷ model context window）估算為 fallback，消除 `statusline_<sid>_ctx.tmp` 硬依賴；附 10 個 node:test (`server/lib/parse-state.js`, `server/lib/usage.js`, `server/index.js`, `server/test/usage.test.js`)
 - F18 缺依賴優雅降級：quota 面板缺 statusline 改顯示提示並指向 SETUP.md；status 缺 hook 退 stuck-tool + status-tag heuristic（既有，已文件化）(`Claude_Sessions_Dashboard.html`)
 - F18 前置作業文件化：新增 `SETUP.md`（依賴速查表 + 可直接照抄的 3 dashboard hooks + statusline 腳本 + settings.json 掛法 + 驗證 checklist；給「別人 / 未來的 Claude」上手）；README 加「選配增強」段指過去 (`SETUP.md`, `README.md`)

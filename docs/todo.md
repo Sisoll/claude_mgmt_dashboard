@@ -4,18 +4,13 @@
 > **讀取規則**：平常只讀下方「Roadmap」即可，**不要讀全份**；要動某項時再讀該項 Details。
 > **完成後**：發版時把該項從本檔移除，寫進 `bugfix.md` / `feature.md`（見 `release` skill）。
 > **標記**：`[BUG]` = 修錯行為；`[FEAT]` = 新功能或改善。
-> **目標版本**：下批發 **v0.1.5**（結構整理 + HTML 模組化；**本版本 / 進行中**）。v0.1.4（F18 可攜性 / 上手）已發。
+> **目標版本**：v0.1.5（結構整理 + HTML 模組化）已發。下一批未定，候選見下方 **v0.2.x**（個人客製化）。
 > **大版規劃**：**V1.0.0 = HTML + Tauri 並存且功能對等（Tauri ⊇ HTML）** → 詳見 [`PLAN-v1.0.0-tauri.md`](PLAN-v1.0.0-tauri.md)（未動工）。
 
 ## Roadmap（依版本分配）
 
 > 原則：每版聚焦一主題、約 2–4 項，不包山包海。`✅`＝已完成待 commit/release。
 > `[BUG]` 基本歸「當下版本」修；`[FEAT]` 分散到後續版本。詳情看下方 Details。
-
-### v0.1.5 — 結構整理 + HTML 模組化（chore，獨立版；本版本 / 進行中）
-- C1 `[CHORE]` repo 重構：root 精簡 + 依用途切 `web/` `server/` `scripts/` `docs/`；連帶修所有路徑引用 + README/CLAUDE.md/release skill → 見 Details
-- M0.5 `[CHORE]` HTML 拆 no-build ES modules（從 V1 計畫提前到此版；搬進 `web/` 時順手拆）→ 見 PLAN §M0.5
-- 做法：**先 commit v0.1.3** → 再做本版，**內部分兩 commit**（① C1 純搬移 ② M0.5 模組化），保 git rename 追蹤 + 可 bisect。M0.5 較高風險、無前端自動測 → 靠 browser smoke。
 
 ### v0.2.x — 個人客製化 / 設定（提高使用者黏著度）
 > 主軸：讓 dashboard 變「你的」—— 客製化鈴聲 / icon、個人開關設定，黏著度↑。
@@ -37,7 +32,7 @@
 ### V1.0.0 — HTML + Tauri 並存且對等（大版，獨立 track）
 → 詳見 [`PLAN-v1.0.0-tauri.md`](PLAN-v1.0.0-tauri.md)
 - M0   對等基準線盤點（HTML 功能 checklist）
-- M0.5 零 build 模組化（HTML → 拆 ES modules + CSS；含同步改 CLAUDE.md 單檔條款）
+- M0.5 ✅ 零 build 模組化（v0.1.5 已完成 externalize：`web/ui/{styles.css,app.js}` + 改 CLAUDE.md 單檔條款；細拆 ws/render/status/host/… 待後續增量）
 - M1   Tauri 殼 + Node sidecar（對等即達成）+ tray
 - M2   原生 Toast 通知（帶按鈕）
 - M3   windows-rs 視窗動作（消滅 PowerShell spawn）
@@ -105,25 +100,6 @@
 - 安全注意：install 本質會執行 script；務必只放行「單一、無 chaining/redirect/subshell」指令；保留 audit log；預設關。
 - ⚠️ **實務發現（2026-06-03，使用者實測）**：Claude 常把 compile/test 包成**複合指令**，例如 `mvn -q compile 2>&1 | tail -6; echo "COMPILE_EXIT=${PIPESTATUS[0]}"; ls -1 target/...`。現有硬 deny 會擋任何 `|`/`;`/`>`/`&` → 這類**即使 F16 做好也不會自動過**（F16 只放單一乾淨指令如 `mvn -q compile`）。→ F16 要決定：(a) 維持只放單一乾淨指令（安全但實用性打折，多數實際 prompt 仍會跳）；或 (b) 特例放行「build/test 主指令 + 純讀取尾管（`| tail`/`| head`/`| grep`）+ `; echo`/`; ls` 這類無害收尾」的安全組合 pattern。這是 F16 實用度的關鍵設計點。
 - 待實作時決定：開關全域（一個 flag、所有 session）還是 per-session（hook 有 session_id 可比對）？「抓檔案」要含 git pull/curl 嗎？沿用 `auto-approve.enabled` 還是獨立 `auto-approve-build.enabled`（建議獨立，風險分層）。
-
-### C1 `[CHORE]` 倉庫結構整理（root 精簡 + 依用途分資料夾）
-- 需求：root 盡量乾淨；其餘依功能/目的/類型切資料夾。調整後同步修 README / CLAUDE.md 等。
-- 提案 layout：root 只留 `README.md` / `CLAUDE.md` / `.gitignore` + 資料夾 `web/` `server/` `scripts/` `docs/` `.claude/`
-  - `web/dashboard.html`（← `Claude_Sessions_Dashboard.html`，順便改名）
-  - `server/`（不動內部；**PS helpers 留 `server/scripts/`** 省路徑改動）
-  - `scripts/`（`start-server.cmd` / `.vbs`、`open-dashboard.cmd`、`install`/`uninstall-autostart.ps1`）
-  - `docs/`（`todo.md`、`CHANGELOG.md`、`bugfix.md`、`feature.md`、`PLAN-v1.0.0-tauri.md`）
-- 連帶要改的路徑引用：
-  - `server/index.js` 服務 HTML 的路徑 → `../web/dashboard.html`
-  - `scripts/start-server.cmd` / `.vbs` 的 `%~dp0` / projectDir 計算
-  - `scripts/install-autostart.ps1` 的 shortcut target（已裝捷徑會失效 → 需重跑 install）
-  - `.claude/scripts/show-todo.sh` 的 `todo.md` 路徑 → `docs/todo.md`
-  - `release` skill 內 changelog/bugfix/feature 路徑 → `docs/`
-  - `README.md` / `CLAUDE.md` 的檔案結構與路徑說明
-  - PS helpers 留 `server/` → `win-helpers.js` 路徑**不動**（刻意）
-- ⚠️ `CLAUDE.md` 必須留 root（CC 自動讀 `<repo>/CLAUDE.md`）。
-- 版本：**獨立 v0.1.5**（chore，pure-move commit），別跟功能 commit 混。alt：`v0.2.0`（想用 minor 凸顯）。
-- ⚠️ 待確認：layout（PS helpers 去留、changelog 收 docs/）+ 是否走 v0.1.5。
 
 ### B4 `[BUG]` 狀態偵測偶發回歸（狀況不明）
 - 現象：某個已修的狀態判斷在某些情況又出現，無穩定 repro。
