@@ -147,6 +147,22 @@
     }
   });
 
+  // ============== Open Claude web (F19) ==============
+  $('#open-claude-btn').addEventListener('click', () => {
+    window.open('https://claude.ai/new', '_blank', 'noopener');
+  });
+
+  // ============== Collapse all expanded cards (F20) ==============
+  // Collapses every currently-expanded card and persists each via setCollapsed.
+  // Intentionally does NOT clear needs-attention pulses (unlike a single head click).
+  $('#collapse-all-btn').addEventListener('click', () => {
+    $$('#sessions .card[data-collapsed="false"]').forEach(card => {
+      card.setAttribute('data-collapsed', 'true');
+      const sid = card.getAttribute('data-sid');
+      if (sid && wsSend) wsSend({ type: 'setCollapsed', sid, collapsed: true });
+    });
+  });
+
   $('#sound-toggle').addEventListener('click', (e) => {
     soundOn = !soundOn;
     e.currentTarget.style.color = soundOn ? '' : 'var(--text-faint)';
@@ -332,6 +348,21 @@
     return isLatest;
   }
 
+  // F11: token consumption per turn, in 萬 (W) units — 32000 → "3.2W".
+  function formatTokensW(n) {
+    return (n / 10000).toFixed(1) + 'W';
+  }
+  // White ('tk-pending') while the turn is still being processed (not done, or no
+  // usage yet); otherwise coloured by total new+generated tokens this turn.
+  function tokenTier(tokens, done) {
+    if (!done || tokens == null) return 'tk-pending';
+    if (tokens < 10000)  return 'tk-green';
+    if (tokens < 25000)  return 'tk-cyan';
+    if (tokens < 50000)  return 'tk-yellow';
+    if (tokens < 100000) return 'tk-orange';
+    return 'tk-red';
+  }
+
   function renderTurn(sid, turn, isLatest, idx) {
     const tsHHMM = turn.ts ? formatHHMM(turn.ts) : '';
     const expanded = turnIsExpanded(sid, turn.ts || 0, isLatest);
@@ -346,10 +377,17 @@
     const userBody = userFull || '<span style="color:var(--text-faint)">(空白)</span>';
     const asstBody = asstFull || '<span style="color:var(--text-faint)">(thinking…)</span>';
 
+    const tkVal = (typeof turn.tokens === 'number') ? turn.tokens : null;
+    const tkTitle = tkVal != null
+      ? `本輪 ${tkVal.toLocaleString()} tokens（input + cache_creation + output，不含 cache_read）${turn.done ? '' : ' · 處理中'}`
+      : '尚未處理完';
+    const tokensHtml = `<span class="turn-tokens ${tokenTier(tkVal, turn.done)}" title="${escapeHtml(tkTitle)}">👁 ${tkVal != null ? formatTokensW(tkVal) : '··'}</span>`;
+
     return `
       <div class="turn ${isLatest ? 'is-latest' : ''}" data-collapsed="${expanded ? 'false' : 'true'}" data-ts="${turn.ts || 0}">
         <div class="turn-head">
           <span class="turn-ts">${tsHHMM}</span>
+          ${tokensHtml}
           <span class="turn-preview">${preview}</span>
           <span class="turn-badges">${toolBadge}</span>
           <svg class="turn-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg>

@@ -50,8 +50,8 @@
           </div>
         </div>
       </div>
-      <button class="icon-btn" title="New session" style="background:var(--text); color:#fff; border-color:var(--text);">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+      <button class="icon-btn" id="open-claude-btn" title="開新 Claude 網頁（claude.ai/new，另開分頁）" style="background:var(--text); color:#fff; border-color:var(--text);">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 11.5 11 5"/><path d="M6.5 5H11v4.5"/></svg>
       </button>
       <button class="icon-btn" title="重啟 dashboard server（起新 process 取代；會短暫斷線後自動連回）" id="restart-btn">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-4"/><path d="M13.5 2.5V6H10"/></svg>
@@ -96,7 +96,12 @@
   <!-- Section -->
   <div class="section-title">
     <h2>Active sessions</h2>
-    <span class="meta">refreshed 4s ago</span>
+    <div class="section-actions">
+      <span class="meta">refreshed 4s ago</span>
+      <button class="icon-btn" id="collapse-all-btn" title="收合所有展開的卡片（像捲簾往上收）">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h10"/><path d="M4.5 8.5 8 5l3.5 3.5"/><path d="M4.5 12.5 8 9l3.5 3.5"/></svg>
+      </button>
+    </div>
   </div>
 
   <div class="sessions" id="sessions"></div>

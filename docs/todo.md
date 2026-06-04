@@ -4,7 +4,7 @@
 > **讀取規則**：平常只讀下方「Roadmap」即可，**不要讀全份**；要動某項時再讀該項 Details。
 > **完成後**：發版時把該項從本檔移除，寫進 `bugfix.md` / `feature.md`（見 `release` skill）。
 > **標記**：`[BUG]` = 修錯行為；`[FEAT]` = 新功能或改善。
-> **目標版本**：v0.1.5（結構整理 + HTML 模組化）已發。下一批未定，候選見下方 **v0.2.x**（個人客製化）。
+> **目標版本**：v0.2.1（F11 token 小眼睛 + F19 ↗ 開 Claude + F20 收合全部）已發。後續見下方 **v0.2.x**（個人客製化）。
 > **大版規劃**：**V1.0.0 = HTML + Tauri 並存且功能對等（Tauri ⊇ HTML）** → 詳見 [`PLAN-v1.0.0-tauri.md`](PLAN-v1.0.0-tauri.md)（未動工）。
 
 ## Roadmap（依版本分配）
@@ -15,9 +15,6 @@
 ### v0.2.x — 個人客製化 / 設定（提高使用者黏著度）
 > 主軸：讓 dashboard 變「你的」—— 客製化鈴聲 / icon、個人開關設定，黏著度↑。
 
-#### v0.2.1 — 資訊密度
-- F11 `[FEAT]` 每個 prompt 的 token 消耗「小眼睛」
-
 #### v0.2.2 — 提醒客製化
 - F13 `[FEAT]` 自訂通知鈴聲（上傳音檔）
 - F14 `[FEAT]` orbit icon + 圖庫（多張/挑選/刪除/記住上次/只在「亮」時/支援動圖）
@@ -25,6 +22,9 @@
 #### v0.2.3 — 互動 / 個人設定
 - F15 `[FEAT]` 送 prompt 語音輸入（speech-to-text）
 - F16 `[FEAT]` 自動核准「編譯/測試/安裝」開關（預設關）
+
+#### v0.2.4 — new session 啟動
+- F21 `[FEAT]` topbar「新 session」：選資料夾 → 開 powershell/bash → 主動執行 claude
 
 ### 未定版（floating）
 - B4  `[BUG]` ⛔ 偶發狀態回歸 —— 需 repro，重現才排進版本
@@ -42,11 +42,6 @@
 ---
 
 ## Details
-
-### F11 `[FEAT]` 每個 prompt 的 token 消耗「小眼睛」
-- 需求：每個 prompt（turn）顯示該輪 token 消耗，放在「時間」與「prompt 本體」之間，用 👁 小眼睛。單位 **W（萬，/10000）**，例 32000→`3.2W`。
-- 顏色：**白＝還沒處理完**；綠 <10000；青 10000–25000；黃 25000–50000；橙 50000–100000；紅 >100000。subagent 也類似（顯示各自用量）。
-- 實作：`parse-state.js` 目前 `_absorbUsage` 只累加總量 → 要**按 turn 記 token**（assistant 訊息 `usage` 歸到當前 turn、多訊息相加；指標傾向該 turn 總 token）；snapshot history 每筆帶 `tokens`；前端 turn 渲染插 👁＋依 tier 上色；subagent token 需確認主 JSONL 是否有 sub-agent 內部用量，拿不到先只做主 prompt。
 
 ### F13 `[FEAT]` 自訂通知鈴聲（可上傳音檔）
 - 需求：通知音效改成可上傳自訂音檔。目前 waiting / completion / failure 三種事件用 Web Audio 合成 oscillator 音（`chime` / `chimeCompletion` / `chimeFailure`，`HTML:1396-1398`），完全沒讀音檔。
@@ -100,6 +95,15 @@
 - 安全注意：install 本質會執行 script；務必只放行「單一、無 chaining/redirect/subshell」指令；保留 audit log；預設關。
 - ⚠️ **實務發現（2026-06-03，使用者實測）**：Claude 常把 compile/test 包成**複合指令**，例如 `mvn -q compile 2>&1 | tail -6; echo "COMPILE_EXIT=${PIPESTATUS[0]}"; ls -1 target/...`。現有硬 deny 會擋任何 `|`/`;`/`>`/`&` → 這類**即使 F16 做好也不會自動過**（F16 只放單一乾淨指令如 `mvn -q compile`）。→ F16 要決定：(a) 維持只放單一乾淨指令（安全但實用性打折，多數實際 prompt 仍會跳）；或 (b) 特例放行「build/test 主指令 + 純讀取尾管（`| tail`/`| head`/`| grep`）+ `; echo`/`; ls` 這類無害收尾」的安全組合 pattern。這是 F16 實用度的關鍵設計點。
 - 待實作時決定：開關全域（一個 flag、所有 session）還是 per-session（hook 有 session_id 可比對）？「抓檔案」要含 git pull/curl 嗎？沿用 `auto-approve.enabled` 還是獨立 `auto-approve-build.enabled`（建議獨立，風險分層）。
+
+### F21 `[FEAT]` topbar「新 session」：選資料夾 → 開 shell → 跑 claude
+- 需求：承接原 `+`「New session」語意 —— 點按鈕 → 選一個資料夾目錄 → 在該目錄開啟 powershell/bash → 主動執行 `claude`，等於真的起一個新的 Claude Code session。
+- 卡點：瀏覽器沙箱拿不到可靠的本機絕對路徑、也不能 spawn terminal → 必須走 Node server。
+- 實作方向：
+  - FE：資料夾選取（瀏覽器 `<input webkitdirectory>` 拿不到絕對路徑 → 可能要 server 端目錄 picker，或請使用者貼路徑）。
+  - server：新增 `/api/*` endpoint，用 `child_process` spawn 開新終端（Windows：`wt`/`start`/`powershell -NoExit -Command "cd <dir>; claude"`）。
+  - 任意目錄 spawn＝執行任意程式，要確認/白名單；預設保守。
+- 備註：此能力在 V1.0.0 Tauri（native 檔案對話框 + spawn）會更自然，屆時可優先走 native 實作。
 
 ### B4 `[BUG]` 狀態偵測偶發回歸（狀況不明）
 - 現象：某個已修的狀態判斷在某些情況又出現，無穩定 repro。

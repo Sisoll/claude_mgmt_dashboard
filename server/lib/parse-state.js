@@ -105,6 +105,10 @@ class SessionState {
     // is derived from this so a cleared session doesn't show a 72h runtime.
     this.firstEventTs = null;
     this.tokens = { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
+    // Claude Code writes one JSONL line per assistant content block (thinking / text /
+    // tool_use), each repeating the FULL message.usage. Dedupe by message id so token
+    // totals (session-level and per-turn) count each assistant message exactly once.
+    this._tokenCountedMsgIds = new Set();
     // Tokens fed into the model on the LATEST assistant request (input + both cache
     // tiers) ≈ current context-window occupancy. Overwritten each assistant message
     // (we want the most recent, not a sum). Used to native-derive ctx-remain % when
@@ -141,7 +145,7 @@ class SessionState {
         if (isInternalUserMessage(content)) return;
         this.lastUserPrompt = { text: content, ts };
         if (!this.firstUserPrompt) this.firstUserPrompt = { text: content, ts };
-        this.turns.push({ ts, userText: content, assistantSummary: '', tools: [] });
+        this.turns.push({ ts, userText: content, assistantSummary: '', tools: [], tokens: null, done: false });
         if (this.turns.length > MAX_TURNS) this.turns = this.turns.slice(-MAX_TURNS);
       } else if (Array.isArray(content)) {
         for (const item of content) {
@@ -161,13 +165,31 @@ class SessionState {
         thinkingParts: content.filter((c) => c.type === 'thinking').map((c) => c.thinking).filter(Boolean),
         toolUses: content.filter((c) => c.type === 'tool_use'),
       };
-      this._absorbUsage(msg.usage);
+      // Dedupe usage by message id (one JSONL line per content block repeats usage).
+      // Falls back to per-line counting when id is absent (older JSONL format).
+      const msgId = msg.id;
+      const firstUsageForMsg = !msgId || !this._tokenCountedMsgIds.has(msgId);
+      if (msgId) this._tokenCountedMsgIds.add(msgId);
+      if (firstUsageForMsg) this._absorbUsage(msg.usage);
       for (const tu of this.lastAssistant.toolUses) {
         this._openToolUse(tu, ts);
       }
 
       const turn = this.turns[this.turns.length - 1];
       if (turn) {
+        // F11: per-turn token consumption = new + generated tokens this turn
+        // (input + cache_creation + output), EXCLUDING cache_read (re-read of existing
+        // context). Counted once per message id via the dedupe gate above.
+        if (firstUsageForMsg && msg.usage) {
+          const u = msg.usage;
+          turn.tokens = (turn.tokens || 0)
+            + (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.output_tokens || 0);
+        }
+        // "done" = model stopped for a non-tool reason (end_turn / max_tokens / refusal).
+        // While still looping on tool_use the turn stays in-progress → rendered white.
+        if (this.lastAssistant.stopReason && this.lastAssistant.stopReason !== 'tool_use') {
+          turn.done = true;
+        }
         const text = this.lastAssistant.textParts.join('\n').trim();
         if (text) {
           const condensed = condenseText(text);
@@ -362,6 +384,8 @@ class SessionState {
       user: t.userText.length > TURN_USER_MAX ? t.userText.slice(0, TURN_USER_MAX) + '…' : t.userText,
       assistant: t.assistantSummary || '',
       tools: t.tools.slice(0, 8),
+      tokens: t.tokens ?? null,
+      done: !!t.done,
     }));
     const status = this.computeStatus();
     let waitingPrompt = null;

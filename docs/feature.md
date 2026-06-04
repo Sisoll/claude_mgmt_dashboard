@@ -2,6 +2,9 @@
 
 > 已完成的功能 / 改善，**最新在上**。每條可直接當 commit message 用。
 
+- F11 每個 prompt 的 token 消耗「小眼睛」👁：turn-head 在時間與 prompt 間顯示該輪 token（W＝萬），依量級 6 級上色（白＝處理中／綠<1W／青<2.5W／黃<5W／橙<10W／紅≥10W）；指標＝input+cache_creation+output（排除 cache_read）。關鍵：Claude Code 每個 assistant 訊息按 content block 拆多行、每行重複 usage → 新增 `_tokenCountedMsgIds` 以 message id dedupe，per-turn 與 session 總量都只計一次（順帶修正既有 session 總量被多算）。done＝stop_reason≠tool_use (`server/lib/parse-state.js`, `web/ui/app.js`, `web/ui/styles.css`)
+- F19 topbar 死按鈕 `+` 改成 ↗（external-link）並接 `window.open('https://claude.ai/new','_blank','noopener')`，另開分頁開新 Claude 網頁（原「new session」語意移交 F21）(`web/dashboard.html`, `web/ui/app.js`)
+- F20 「收合所有展開卡片」按鈕：Active sessions 標題列 refreshed 右側加捲簾上收圖示鈕，一鍵把所有展開卡片收合並以既有 `setCollapsed` WS 持久化；刻意保留 needs-attention 脈動（`.section-title` 改用 `.section-actions` flex 容器）(`web/dashboard.html`, `web/ui/app.js`, `web/ui/styles.css`)
 - v0.1.5 M0.5 HTML 模組化（no-build）：dashboard.html 拆成 markup 殼 + `web/ui/styles.css` + `web/ui/app.js`（原生 ES module，逐字外移、零邏輯改）；server 加 `/ui/*` 靜態服務（正確 MIME + no-store + path-traversal guard）；CLAUDE.md 單檔條款更新 (`web/dashboard.html`, `web/ui/styles.css`, `web/ui/app.js`, `server/index.js`, `CLAUDE.md`)
 - v0.1.5 C1 repo 結構整理：dashboard→`web/dashboard.html`、文件→`docs/`（todo/CHANGELOG/bugfix/feature/PLAN/SETUP），git rename 追蹤；修全部路徑引用（server/index.js、README、CLAUDE.md、本地 show-todo.sh + release skill）；launchers 留 root、PS helpers 留 server/scripts/ (`web/`, `docs/`, `server/index.js`, `README.md`, `CLAUDE.md`)
 - F18 ctx remain % 改 native 自算：statusline 為主、JSONL usage（input+cache_read+cache_creation ÷ model context window）估算為 fallback，消除 `statusline_<sid>_ctx.tmp` 硬依賴；附 10 個 node:test (`server/lib/parse-state.js`, `server/lib/usage.js`, `server/index.js`, `server/test/usage.test.js`)

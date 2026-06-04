@@ -2,6 +2,12 @@
 
 Release notes（標題為主）。最新在上。
 
+## v0.2.1
+### Features — 資訊密度 / 快速操作
+- F11 每個 prompt 的 token 消耗「小眼睛」👁：turn 顯示該輪 token（W＝萬）+ 6 級色階；指標＝input+cache_creation+output（不含 cache_read）；以 message id dedupe 修正按 content block 拆行造成的重複計算
+- F19 topbar `+` 改 ↗，另開分頁開 claude.ai/new
+- F20 「收合所有展開卡片」按鈕（捲簾上收），複用 setCollapsed 持久化、保留 needs-attention 脈動
+
 ## v0.1.5
 ### Chore
 - C1 repo 結構整理：dashboard→`web/`、文件→`docs/`（git rename 追蹤）；修全部路徑引用，launchers 留 root、PS helpers 留 server/scripts/
