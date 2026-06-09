@@ -10,6 +10,7 @@ const { SessionState } = require('./lib/parse-state');
 const sidecar = require('./lib/sidecar');
 const { flashWindowForPid, focusWindowForPid, sendPromptToPid } = require('./lib/win-helpers');
 const { getQuotas, readCtxRemainForSession, ctxRemainPctFromTokens } = require('./lib/usage');
+const { listDir } = require('./lib/fslist');
 
 const PORT = Number(process.env.PORT || 7878);
 const HOST = '127.0.0.1';
@@ -307,6 +308,43 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/fs/list') {
+    try {
+      const result = listDir(url.searchParams.get('path') || '');
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(result));
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/launch-session') {
+    let body = '';
+    req.on('data', (c) => { body += c.toString(); });
+    req.on('end', () => {
+      let dir = '';
+      try { dir = String(JSON.parse(body || '{}').dir || ''); } catch {}
+      try {
+        if (!dir || !fs.statSync(dir).isDirectory()) throw new Error('not a directory');
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'invalid dir: ' + (e.message || dir) }));
+        return;
+      }
+      try {
+        launchClaudeSession(dir);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: true, dir }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   // F12: shut down the whole dashboard server. Respond first, then exit so the
   // response + WS close frames flush. autostart only runs at Windows login, so
   // after this the user must manually re-run start-server.cmd / .vbs.
@@ -372,6 +410,23 @@ const server = http.createServer((req, res) => {
 
   res.writeHead(404); res.end('not found');
 });
+
+// F21: open a new terminal in <dir> running `claude`. Prefer Windows Terminal (wt -d);
+// fall back to a detached PowerShell window. Same detached/unref pattern as /api/restart.
+function launchClaudeSession(dir) {
+  const { spawn } = require('child_process');
+  const psDir = dir.replace(/'/g, "''");
+  const tryPs = () => spawn('cmd', ['/c', 'start', 'powershell', '-NoExit', '-Command',
+    `Set-Location -LiteralPath '${psDir}'; claude`], { detached: true, stdio: 'ignore' });
+  let child;
+  try {
+    child = spawn('wt', ['-d', dir, 'cmd', '/k', 'claude'], { detached: true, stdio: 'ignore' });
+    child.on('error', () => { try { tryPs().unref(); } catch {} });   // wt not installed → fallback
+  } catch {
+    child = tryPs();
+  }
+  try { child.unref(); } catch {}
+}
 
 async function handleAction(sid, action, payload) {
   const meta = registry.alive.get(sid);
