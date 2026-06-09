@@ -26,3 +26,13 @@ test('listDir 空 path → 回磁碟機根 + parent=null', () => {
 test('listDir 不存在路徑 → throw', () => {
   assert.throws(() => listDir(path.join(os.tmpdir(), 'no-such-dir-xyz123')));
 });
+
+test('listDir 隱藏雜訊夾 + 壓縮檔名夾', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fslist-'));
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.mkdirSync(path.join(root, 'node_modules'));
+  fs.mkdirSync(path.join(root, 'dist'));
+  fs.mkdirSync(path.join(root, 'backup.zip'));   // a folder named like an archive
+  const r = listDir(root);
+  assert.deepStrictEqual(r.dirs, ['src']);
+});

@@ -325,8 +325,8 @@ const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (c) => { body += c.toString(); });
     req.on('end', () => {
-      let dir = '';
-      try { dir = String(JSON.parse(body || '{}').dir || ''); } catch {}
+      let dir = '', shell = 'powershell';
+      try { const b = JSON.parse(body || '{}'); dir = String(b.dir || ''); shell = b.shell === 'bash' ? 'bash' : 'powershell'; } catch {}
       try {
         if (!dir || !fs.statSync(dir).isDirectory()) throw new Error('not a directory');
       } catch (e) {
@@ -335,9 +335,9 @@ const server = http.createServer((req, res) => {
         return;
       }
       try {
-        launchClaudeSession(dir);
+        launchClaudeSession(dir, shell);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ ok: true, dir }));
+        res.end(JSON.stringify({ ok: true, dir, shell }));
       } catch (e) {
         res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ error: e.message }));
@@ -437,19 +437,26 @@ const server = http.createServer((req, res) => {
   res.writeHead(404); res.end('not found');
 });
 
-// F21: open a new terminal in <dir> running `claude`. Prefer Windows Terminal (wt -d);
-// fall back to a detached PowerShell window. Same detached/unref pattern as /api/restart.
-function launchClaudeSession(dir) {
+// F21: open a new terminal in <dir> running `claude`, in the chosen shell (powershell|bash).
+// Prefer Windows Terminal (wt -d <dir>); fall back to a detached `start … /D <dir>` window.
+function launchClaudeSession(dir, shell) {
   const { spawn } = require('child_process');
-  const psDir = dir.replace(/'/g, "''");
-  const tryPs = () => spawn('cmd', ['/c', 'start', 'powershell', '-NoExit', '-Command',
-    `Set-Location -LiteralPath '${psDir}'; claude`], { detached: true, stdio: 'ignore' });
+  const det = { detached: true, stdio: 'ignore' };
+  let wtArgs, fbArgs;
+  if (shell === 'bash') {
+    // run claude in an interactive login bash; keep the shell open after claude exits
+    wtArgs = ['-d', dir, 'bash', '-lic', 'claude; exec bash'];
+    fbArgs = ['/c', 'start', '', '/D', dir, 'bash', '-lic', 'claude; exec bash'];
+  } else {
+    wtArgs = ['-d', dir, 'powershell', '-NoExit', '-Command', 'claude'];
+    fbArgs = ['/c', 'start', '', '/D', dir, 'powershell', '-NoExit', '-Command', 'claude'];
+  }
   let child;
   try {
-    child = spawn('wt', ['-d', dir, 'cmd', '/k', 'claude'], { detached: true, stdio: 'ignore' });
-    child.on('error', () => { try { tryPs().unref(); } catch {} });   // wt not installed → fallback
+    child = spawn('wt', wtArgs, det);
+    child.on('error', () => { try { spawn('cmd', fbArgs, det).unref(); } catch {} });  // wt absent → fallback
   } catch {
-    child = tryPs();
+    child = spawn('cmd', fbArgs, det);
   }
   try { child.unref(); } catch {}
 }

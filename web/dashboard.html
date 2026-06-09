@@ -126,14 +126,29 @@
   <div class="fs-modal hidden" id="fs-modal">
     <div class="fs-modal-card">
       <div class="fs-modal-head">
-        <span class="fs-modal-title">選擇資料夾 → 開新 Claude session</span>
-        <button class="icon-btn" id="fs-close">✕</button>
+        <span class="fs-modal-title">
+          <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 4.8h4l1.2 1.5h6.8a.8.8 0 0 1 .8.8v6a.8.8 0 0 1-.8.8H2.3a.8.8 0 0 1-.8-.8v-8a.8.8 0 0 1 .8-.8Z"/></svg>
+          開新 Claude session
+        </span>
+        <button class="icon-btn fs-close" id="fs-close" title="關閉">✕</button>
       </div>
-      <div class="fs-crumb" id="fs-crumb"></div>
-      <div class="fs-list" id="fs-list"></div>
+      <div class="fs-body">
+        <aside class="fs-recent">
+          <div class="fs-recent-title">最近</div>
+          <div class="fs-recent-list" id="fs-recent"></div>
+        </aside>
+        <section class="fs-browse">
+          <div class="fs-crumb" id="fs-crumb"></div>
+          <div class="fs-list" id="fs-list"></div>
+        </section>
+      </div>
       <div class="fs-modal-foot">
-        <span class="fs-current" id="fs-current">—</span>
-        <button class="action-btn primary" id="fs-open" disabled>在此開啟</button>
+        <div class="fs-current" id="fs-current">選一個資料夾…</div>
+        <div class="fs-shell" id="fs-shell" role="group" aria-label="選擇 shell">
+          <button class="fs-shell-opt" data-shell="powershell">PowerShell</button>
+          <button class="fs-shell-opt" data-shell="bash">Bash</button>
+        </div>
+        <button class="fs-open-btn" id="fs-open" disabled>在此開啟</button>
       </div>
     </div>
   </div>

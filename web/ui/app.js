@@ -1233,10 +1233,62 @@
     reconnectDelay = Math.min(reconnectDelay * 1.5, 10000);
   }
 
-  // ============== F21: new-session folder picker modal ==============
+  // ============== F21: new-session folder picker (two-pane: recent + browse) ==============
   const fsModal = $('#fs-modal'), fsList = $('#fs-list'), fsCrumb = $('#fs-crumb'),
-        fsCurrent = $('#fs-current'), fsOpen = $('#fs-open');
+        fsCurrent = $('#fs-current'), fsOpen = $('#fs-open'), fsRecent = $('#fs-recent');
   let fsCurPath = '';
+  let fsShell = localStorage.getItem('fs.shell') === 'bash' ? 'bash' : 'powershell';
+  const folderIco = '<span class="ico"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 4.8h4l1.2 1.5h6.8a.8.8 0 0 1 .8.8v6a.8.8 0 0 1-.8.8H2.3a.8.8 0 0 1-.8-.8v-8a.8.8 0 0 1 .8-.8Z"/></svg></span>';
+
+  function fsRenderShell() {
+    $$('#fs-shell .fs-shell-opt').forEach((b) => b.classList.toggle('active', b.dataset.shell === fsShell));
+  }
+
+  // recent = localStorage pick-history ∪ current sessions' cwds (most-recent first, deduped)
+  function fsRecentDirs() {
+    const seen = new Set(), out = [];
+    const add = (p) => { if (p && !seen.has(p)) { seen.add(p); out.push(p); } };
+    try { JSON.parse(localStorage.getItem('fs.history') || '[]').forEach(add); } catch {}
+    for (const s of liveSessions.values()) add(s.cwd);
+    return out.slice(0, 8);
+  }
+  function fsPushHistory(p) {
+    let hist = [];
+    try { hist = JSON.parse(localStorage.getItem('fs.history') || '[]'); } catch {}
+    localStorage.setItem('fs.history', JSON.stringify([p, ...hist.filter((x) => x !== p)].slice(0, 8)));
+  }
+  function fsRenderRecent() {
+    const dirs = fsRecentDirs();
+    fsRecent.innerHTML = dirs.length ? '' : '<div class="fs-recent-empty">（無）</div>';
+    for (const d of dirs) {
+      const leaf = d.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || d;
+      const b = document.createElement('button');
+      b.className = 'fs-recent-item'; b.title = d;
+      b.innerHTML = `<span class="star">★</span><span class="lbl">${escapeHtml(leaf)}</span>`;
+      b.onclick = () => fsLoad(d);
+      fsRecent.appendChild(b);
+    }
+  }
+
+  function fsRenderCrumb(p) {
+    fsCrumb.innerHTML = '';
+    const root = document.createElement('button');
+    root.className = 'fs-crumb-seg'; root.textContent = '💾 磁碟機';
+    root.onclick = () => fsLoad('');
+    fsCrumb.appendChild(root);
+    if (!p) return;
+    const parts = p.replace(/[\\/]+$/, '').split(/[\\/]/);
+    let acc = '';
+    parts.forEach((seg, i) => {
+      acc = i === 0 ? seg + '\\' : acc.replace(/\\$/, '') + '\\' + seg;
+      const target = acc;
+      const sep = document.createElement('span'); sep.className = 'fs-crumb-sep'; sep.textContent = '›';
+      const b = document.createElement('button');
+      b.className = 'fs-crumb-seg'; b.textContent = seg || target;
+      b.onclick = () => fsLoad(target);
+      fsCrumb.appendChild(sep); fsCrumb.appendChild(b);
+    });
+  }
 
   async function fsLoad(p) {
     try {
@@ -1244,49 +1296,54 @@
       const data = await res.json();
       if (!res.ok) { pushToast({ title: '讀目錄失敗', msg: data.error || '' }); return; }
       fsCurPath = data.path || '';
-      fsCurrent.textContent = fsCurPath || '（磁碟機）';
+      fsCurrent.textContent = fsCurPath || '選一個資料夾…';
       fsOpen.disabled = !fsCurPath;            // 磁碟機根清單層不可直接開
       if (fsCurPath) localStorage.setItem('fs.lastPath', fsCurPath);
-      // breadcrumb: 上層 + 目前
-      fsCrumb.innerHTML = '';
-      if (data.parent !== null || data.path) {
-        const up = document.createElement('button');
-        up.className = 'fs-up'; up.textContent = '⬆ 上層';
-        up.onclick = () => fsLoad(data.parent === null ? '' : data.parent);
-        fsCrumb.appendChild(up);
-      }
-      // list: drives (root) or dirs
+      fsRenderCrumb(fsCurPath);
       fsList.innerHTML = '';
-      const items = (data.drives && data.drives.length) ? data.drives
-        : data.dirs.map((d) => (fsCurPath.endsWith('\\') ? fsCurPath + d : fsCurPath + '\\' + d));
-      for (const full of items) {
+      const items = (data.drives && data.drives.length)
+        ? data.drives.map((d) => ({ full: d, label: d.replace(/\\$/, '') }))
+        : data.dirs.map((d) => ({ full: fsCurPath.endsWith('\\') ? fsCurPath + d : fsCurPath + '\\' + d, label: d }));
+      for (const it of items) {
         const row = document.createElement('button');
-        row.className = 'fs-row'; row.textContent = '📁 ' + full.replace(/\\$/, '').split('\\').pop() || full;
-        row.title = full;
-        row.onclick = () => fsLoad(full);
+        row.className = 'fs-row'; row.title = it.full;
+        row.innerHTML = folderIco + `<span>${escapeHtml(it.label)}</span>`;
+        row.onclick = () => fsLoad(it.full);
         fsList.appendChild(row);
       }
-      if (!items.length) fsList.innerHTML = '<div class="fs-empty">（無子資料夾）</div>';
+      if (!items.length) fsList.innerHTML = '<div class="fs-empty">（這個資料夾沒有可進入的子資料夾）</div>';
     } catch (err) { pushToast({ title: '讀目錄失敗', msg: err.message }); }
   }
 
   $('#new-session-btn').addEventListener('click', () => {
     fsModal.classList.remove('hidden');
+    fsRenderShell();
+    fsRenderRecent();
     fsLoad(localStorage.getItem('fs.lastPath') || '');
   });
   $('#fs-close').addEventListener('click', () => fsModal.classList.add('hidden'));
   fsModal.addEventListener('click', (e) => { if (e.target === fsModal) fsModal.classList.add('hidden'); });
+  $('#fs-shell').addEventListener('click', (e) => {
+    const opt = e.target.closest('.fs-shell-opt'); if (!opt) return;
+    fsShell = opt.dataset.shell === 'bash' ? 'bash' : 'powershell';
+    localStorage.setItem('fs.shell', fsShell);
+    fsRenderShell();
+  });
   fsOpen.addEventListener('click', async () => {
     if (!fsCurPath) return;
-    if (!confirm(`將在這個資料夾開新 Claude session：\n${fsCurPath}`)) return;
+    const shellName = fsShell === 'bash' ? 'Bash' : 'PowerShell';
+    if (!confirm(`將在這個資料夾用 ${shellName} 開新 Claude session：\n${fsCurPath}`)) return;
     try {
       const res = await fetch('/api/launch-session', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dir: fsCurPath }),
+        body: JSON.stringify({ dir: fsCurPath, shell: fsShell }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) { pushToast({ title: '已開新 session', msg: fsCurPath }); fsModal.classList.add('hidden'); }
-      else pushToast({ title: '開新 session 失敗', msg: data.error || `HTTP ${res.status}` });
+      if (res.ok && data.ok) {
+        fsPushHistory(fsCurPath);
+        pushToast({ title: '已開新 session', msg: `${shellName} · ${fsCurPath}` });
+        fsModal.classList.add('hidden');
+      } else pushToast({ title: '開新 session 失敗', msg: data.error || `HTTP ${res.status}` });
     } catch (err) { pushToast({ title: '開新 session 失敗', msg: err.message }); }
   });
 
