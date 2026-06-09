@@ -1093,6 +1093,10 @@
   }
   .send-prompt-input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
   .send-prompt-btn { justify-content: center; }
+  .send-prompt-row { display: flex; gap: 6px; }
+  .send-prompt-row .send-prompt-btn { flex: 1; }
+  .mic-btn { flex: 0 0 auto; }
+  .mic-btn.recording { background: var(--accent); color: #fff; border-color: var(--accent); }
 
   /* ============ Toast ============ */
   .toast-stack {

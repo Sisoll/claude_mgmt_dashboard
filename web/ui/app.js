@@ -606,7 +606,10 @@
       </div>
       <div class="send-prompt">
         <textarea class="send-prompt-input" rows="2" spellcheck="false" placeholder="送 prompt 到此 session…（複製+聚焦+貼上，自行按 Enter 送出）"></textarea>
-        <button class="action-btn send-prompt-btn">✎ 送出 prompt</button>
+        <div class="send-prompt-row">
+          <button class="action-btn mic-btn" data-mic title="語音輸入（zh-TW，填入後自行檢查送出）" hidden>🎤 語音</button>
+          <button class="action-btn send-prompt-btn">✎ 送出 prompt</button>
+        </div>
       </div>
     </aside>
   </div>
@@ -669,6 +672,7 @@
     applyFilter(currentFilter);
     updateStats();
     updateAttention();
+    revealMicButtons();
   }
 
   function updateStats() {
@@ -731,6 +735,16 @@
 
   // ============== Delegation: collapse / rename / actions / filters / turn-toggle / view-watermark ==============
   sessionsContainer.addEventListener('click', (e) => {
+    // F15: mic button
+    const micBtn = e.target.closest('.mic-btn');
+    if (micBtn) {
+      const card = micBtn.closest('.card');
+      const ta = card?.querySelector('.send-prompt-input');
+      if (!ta) return;
+      if (micBtn === micBtnActive) stopMic(); else { stopMic(); startMic(micBtn, ta); }
+      return;
+    }
+
     // View-watermark controls (hide / reset)
     const sendBtn = e.target.closest('.send-prompt-btn');
     if (sendBtn) {
@@ -952,6 +966,43 @@
       else pushToast({ title: 'prompt 已處理', msg: '已複製到剪貼簿' });
       return true;
     } catch (err) { pushToast({ title: '送出 prompt 失敗', msg: err.message }); return false; }
+  }
+
+  // ============== F15: speech-to-text for the send-prompt textarea ==============
+  // (Chrome webkitSpeechRecognition, zh-TW). Fills the textarea; never auto-sends.
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micSupported = !!SpeechRec;
+  let micRec = null;        // active recognition instance
+  let micBtnActive = null;  // the button currently recording
+
+  function startMic(btn, textarea) {
+    if (!micSupported || micRec) return;
+    const rec = new SpeechRec();
+    rec.lang = 'zh-TW';
+    rec.interimResults = true;
+    rec.continuous = false;
+    const base = textarea.value;            // append onto existing text
+    let finalAdd = '';
+    rec.onresult = (ev) => {
+      let interim = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const tr = ev.results[i][0].transcript;
+        if (ev.results[i].isFinal) finalAdd += tr; else interim += tr;
+      }
+      textarea.value = base + finalAdd + interim;
+    };
+    rec.onerror = (ev) => { pushToast({ title: '語音輸入失敗', msg: ev.error || '辨識錯誤（檢查麥克風權限）' }); };
+    rec.onend = () => { micRec = null; if (micBtnActive) { micBtnActive.classList.remove('recording'); micBtnActive.textContent = '🎤 語音'; micBtnActive = null; } };
+    micRec = rec; micBtnActive = btn;
+    btn.classList.add('recording'); btn.textContent = '⏹ 停止';
+    try { rec.start(); } catch (e) { rec.onend(); }
+  }
+  function stopMic() { if (micRec) { try { micRec.stop(); } catch {} } }
+
+  // after cards are (re)rendered — reveal mic buttons only where supported
+  function revealMicButtons() {
+    if (!micSupported) return;
+    $$('.mic-btn[hidden]').forEach((b) => { b.hidden = false; });
   }
 
   // ============== Runtime ticker (smooth runtime / relative-time updates) ==============
