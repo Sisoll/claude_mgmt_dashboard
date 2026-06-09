@@ -449,7 +449,10 @@ function launchClaudeSession(dir, shell) {
     const gitBashExe = ['C:\\Program Files\\Git\\git-bash.exe', 'C:\\Program Files (x86)\\Git\\git-bash.exe']
       .find((p) => { try { return require('fs').existsSync(p); } catch { return false; } });
     if (gitBashExe) {
-      try { spawn(gitBashExe, ['--cd=' + dir, 'bash', '-lic', 'claude; exec bash'], det).unref(); return; } catch {}
+      // git-bash.exe runs `bash --login -i <these args>`. Pass `-c "<cmd>"` (NOT a leading
+      // `bash`, which would be taken as a script operand → "cannot execute binary file").
+      // No ';' mangling here (unlike wt), so 'claude; exec bash' keeps the shell open.
+      try { spawn(gitBashExe, ['--cd=' + dir, '-c', 'claude; exec bash'], det).unref(); return; } catch {}
     }
     // fallback (no git-bash.exe): open an interactive Git Bash via `start` in <dir>.
     const gitBashBin = ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files (x86)\\Git\\bin\\bash.exe']
