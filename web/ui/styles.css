@@ -1293,3 +1293,18 @@
 
   /* ============ Inline icons ============ */
   .i { display: inline-flex; vertical-align: middle; }
+
+  /* ============ F21: new-session folder picker modal ============ */
+  .fs-modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .fs-modal.hidden { display: none; }
+  .fs-modal-card { width: min(560px, 92vw); max-height: 80vh; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.25); overflow: hidden; }
+  .fs-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .fs-modal-title { font-weight: 600; }
+  .fs-crumb { padding: 8px 14px; }
+  .fs-up { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .fs-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
+  .fs-row { display: block; width: 100%; text-align: left; background: none; border: none; padding: 7px 8px; border-radius: 6px; cursor: pointer; }
+  .fs-row:hover { background: var(--surface-2); }
+  .fs-empty { padding: 12px; color: var(--text-faint); }
+  .fs-modal-foot { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--border); }
+  .fs-current { flex: 1; font-size: 12.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1188,6 +1188,63 @@
     reconnectDelay = Math.min(reconnectDelay * 1.5, 10000);
   }
 
+  // ============== F21: new-session folder picker modal ==============
+  const fsModal = $('#fs-modal'), fsList = $('#fs-list'), fsCrumb = $('#fs-crumb'),
+        fsCurrent = $('#fs-current'), fsOpen = $('#fs-open');
+  let fsCurPath = '';
+
+  async function fsLoad(p) {
+    try {
+      const res = await fetch('/api/fs/list?path=' + encodeURIComponent(p || ''));
+      const data = await res.json();
+      if (!res.ok) { pushToast({ title: '讀目錄失敗', msg: data.error || '' }); return; }
+      fsCurPath = data.path || '';
+      fsCurrent.textContent = fsCurPath || '（磁碟機）';
+      fsOpen.disabled = !fsCurPath;            // 磁碟機根清單層不可直接開
+      if (fsCurPath) localStorage.setItem('fs.lastPath', fsCurPath);
+      // breadcrumb: 上層 + 目前
+      fsCrumb.innerHTML = '';
+      if (data.parent !== null || data.path) {
+        const up = document.createElement('button');
+        up.className = 'fs-up'; up.textContent = '⬆ 上層';
+        up.onclick = () => fsLoad(data.parent === null ? '' : data.parent);
+        fsCrumb.appendChild(up);
+      }
+      // list: drives (root) or dirs
+      fsList.innerHTML = '';
+      const items = (data.drives && data.drives.length) ? data.drives
+        : data.dirs.map((d) => (fsCurPath.endsWith('\\') ? fsCurPath + d : fsCurPath + '\\' + d));
+      for (const full of items) {
+        const row = document.createElement('button');
+        row.className = 'fs-row'; row.textContent = '📁 ' + full.replace(/\\$/, '').split('\\').pop() || full;
+        row.title = full;
+        row.onclick = () => fsLoad(full);
+        fsList.appendChild(row);
+      }
+      if (!items.length) fsList.innerHTML = '<div class="fs-empty">（無子資料夾）</div>';
+    } catch (err) { pushToast({ title: '讀目錄失敗', msg: err.message }); }
+  }
+
+  $('#new-session-btn').addEventListener('click', () => {
+    fsModal.classList.remove('hidden');
+    fsLoad(localStorage.getItem('fs.lastPath') || '');
+  });
+  $('#fs-close').addEventListener('click', () => fsModal.classList.add('hidden'));
+  fsModal.addEventListener('click', (e) => { if (e.target === fsModal) fsModal.classList.add('hidden'); });
+  fsOpen.addEventListener('click', async () => {
+    if (!fsCurPath) return;
+    if (!confirm(`將在這個資料夾開新 Claude session：\n${fsCurPath}`)) return;
+    try {
+      const res = await fetch('/api/launch-session', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dir: fsCurPath }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) { pushToast({ title: '已開新 session', msg: fsCurPath }); fsModal.classList.add('hidden'); }
+      else pushToast({ title: '開新 session 失敗', msg: data.error || `HTTP ${res.status}` });
+    } catch (err) { pushToast({ title: '開新 session 失敗', msg: err.message }); }
+  });
+
   // ============== Restart dashboard (F19) ==============
   $('#restart-btn').addEventListener('click', async () => {
     if (!confirm('重啟 dashboard server？\n\n會起一個新 process 取代目前的；畫面會短暫斷線後自動連回。')) return;

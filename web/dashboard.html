@@ -53,6 +53,9 @@
       <button class="icon-btn" id="open-claude-btn" title="開新 Claude 網頁（claude.ai/new，另開分頁）" style="background:var(--text); color:#fff; border-color:var(--text);">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 11.5 11 5"/><path d="M6.5 5H11v4.5"/></svg>
       </button>
+      <button class="icon-btn" id="new-session-btn" title="新 session：選資料夾 → 開終端跑 claude">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></svg>
+      </button>
       <button class="icon-btn" title="重啟 dashboard server（起新 process 取代；會短暫斷線後自動連回）" id="restart-btn">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-4"/><path d="M13.5 2.5V6H10"/></svg>
       </button>
@@ -111,6 +114,21 @@
 <div class="toast-stack" id="toast-stack"></div>
 
 <script type="module" src="ui/app.js"></script>
+
+  <div class="fs-modal hidden" id="fs-modal">
+    <div class="fs-modal-card">
+      <div class="fs-modal-head">
+        <span class="fs-modal-title">選擇資料夾 → 開新 Claude session</span>
+        <button class="icon-btn" id="fs-close">✕</button>
+      </div>
+      <div class="fs-crumb" id="fs-crumb"></div>
+      <div class="fs-list" id="fs-list"></div>
+      <div class="fs-modal-foot">
+        <span class="fs-current" id="fs-current">—</span>
+        <button class="action-btn primary" id="fs-open" disabled>在此開啟</button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
