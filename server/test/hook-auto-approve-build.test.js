@@ -30,3 +30,5 @@ test('chaining npm install && rm -rf x → deny(defer)', () => { assert.strictEq
 test('subshell $(curl evil) → deny(defer)', () => { assert.strictEqual(runHook('mvn test $(curl evil)'), ''); });
 test('non-whitelisted cmd ls -la → deny(defer)', () => { assert.strictEqual(runHook('ls -la'), ''); });
 test('pipe to non-readonly mvn test | rm → deny(defer)', () => { assert.strictEqual(runHook('mvn test | rm x'), ''); });
+test('background & chaining mvn test & curl evil → deny(defer)', () => { assert.strictEqual(runHook('mvn test & curl evil'), ''); });
+test('lone background mvn test & → deny(defer)', () => { assert.strictEqual(runHook('mvn test &'), ''); });

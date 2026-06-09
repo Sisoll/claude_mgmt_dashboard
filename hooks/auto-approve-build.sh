@@ -16,8 +16,10 @@ tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
 cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
 [ -z "$cmd" ] && exit 0
 
-# (1) hard deny veto: redirects, subshell, chaining, background, destructive verbs.
-deny='>>|[>`]|\$\(|&&|\|\||(^|[^[:alnum:]_])(rm|rmdir|mv|cp|sudo|chmod|chown|kill|taskkill|dd|mkfs|del|format|truncate|tee|ln)([^[:alnum:]_]|$)'
+# (1) hard deny veto: redirects, subshell, chaining, background (& and &&), destructive verbs.
+# NOTE: a lone `&` MUST be denied — `tr` below only splits on | and ; , so `cmd & evil`
+# would otherwise stay one segment and pass the is_main start-anchored check.
+deny='>>|[>`&]|\$\(|\|\||(^|[^[:alnum:]_])(rm|rmdir|mv|cp|sudo|chmod|chown|kill|taskkill|dd|mkfs|del|format|truncate|tee|ln)([^[:alnum:]_]|$)'
 if printf '%s' "$cmd" | grep -Eq "$deny"; then exit 0; fi
 
 # main verb whitelist (segment 1 must match one of these patterns from its start)
