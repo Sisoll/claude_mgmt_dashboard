@@ -29,7 +29,10 @@ if ($already) {
   $entry = [pscustomobject]@{ matcher = 'Bash'; hooks = @([pscustomobject]@{ type = 'command'; command = $cmd }) }
   # force array even if PreToolUse had a single element
   $cfg.hooks.PreToolUse = @($cfg.hooks.PreToolUse) + $entry
-  ($cfg | ConvertTo-Json -Depth 20) | Set-Content -Encoding UTF8 $settings
+  # UTF-8 WITHOUT BOM. (Set-Content -Encoding UTF8 on Windows PowerShell 5.x writes a BOM,
+  # which makes settings.json invalid JSON — JSON.parse chokes on the leading U+FEFF.)
+  $json = $cfg | ConvertTo-Json -Depth 20
+  [System.IO.File]::WriteAllText($settings, $json, (New-Object System.Text.UTF8Encoding $false))
   Write-Host 'registered hook in settings.json'
 }
 Write-Host 'done. Restart Claude Code sessions for the hook to take effect.'
