@@ -41,3 +41,42 @@ test('runPs (flashWindowForPid) passes windowsHide:true to powershell.exe', asyn
   assert.strictEqual(captured.opts.windowsHide, true,
     'runPs must pass windowsHide:true (else focus/flash/send-prompt pop a PS window)');
 });
+
+// B5: host detection must be async (spawn, non-blocking) so a cold scan with many sessions
+// never freezes the event loop. These cover parse+cache, failure throttle, and windowsHide.
+test('detectHostProcess (async) parses + caches, passes windowsHide:true', async () => {
+  let captured = null;
+  mock.method(cp, 'spawn', (file, args, opts) => {
+    captured = { file, args, opts };
+    return {
+      stdout: { on: (ev, cb) => { if (ev === 'data') setImmediate(() => cb(Buffer.from('FOUND|WindowsTerminal|111|0xAB|bash'))); } },
+      on: (ev, cb) => { if (ev === 'close') setImmediate(() => setImmediate(() => cb(0))); },
+      kill: () => {},
+    };
+  });
+  const pid = 900000001;
+  const res = await helpers.detectHostProcess(pid);
+  assert.ok(captured, 'spawn should have been called (async, not execFileSync)');
+  assert.strictEqual(captured.file, 'powershell.exe');
+  assert.strictEqual(captured.opts.windowsHide, true);
+  assert.strictEqual(res.name, 'WindowsTerminal');
+  assert.deepStrictEqual(helpers.getCachedHost(pid), res, 'success is cached for sync reads');
+  assert.strictEqual(helpers.shouldDetect(pid), false, 'cached success → no re-detect');
+});
+
+test('detectHostProcess caches failure + throttles retry', async () => {
+  mock.method(cp, 'spawn', () => ({
+    stdout: { on: () => {} },               // no FOUND output → failure
+    on: (ev, cb) => { if (ev === 'close') setImmediate(() => cb(0)); },
+    kill: () => {},
+  }));
+  const pid = 900000002;
+  const res = await helpers.detectHostProcess(pid);
+  assert.strictEqual(res, null);
+  assert.strictEqual(helpers.getCachedHost(pid), null);
+  assert.strictEqual(helpers.shouldDetect(pid), false, 'just-failed → throttled, no immediate re-spawn');
+});
+
+test('shouldDetect is true for an unknown pid', () => {
+  assert.strictEqual(helpers.shouldDetect(900000003), true);
+});

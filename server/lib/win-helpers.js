@@ -44,6 +44,62 @@ function detectHostProcessSync(pid) {
   return result;
 }
 
+// pid -> Promise; dedupe concurrent async detections for the same pid.
+const inFlight = new Map();
+
+// B5: async, NON-BLOCKING host detection (spawn). Same cache semantics as the sync version
+// (success cached forever, failure throttled by FAILED_RETRY_AFTER_MS). Returns the host
+// descriptor or null. Use this on the scan hot path so detection never freezes the event loop.
+function detectHostProcess(pid) {
+  const cached = detectCache.get(pid);
+  if (cached) {
+    if (cached.result) return Promise.resolve(cached.result);
+    if (Date.now() - cached.at < FAILED_RETRY_AFTER_MS) return Promise.resolve(null);
+  }
+  if (inFlight.has(pid)) return inFlight.get(pid);
+  const p = new Promise((resolve) => {
+    let stdout = '', done = false;
+    const child = cp.spawn(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(SCRIPTS_DIR, 'detect-host.ps1'), '-ProcessId', String(pid)],
+      { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    const finish = (out) => {
+      if (done) return; done = true;
+      clearTimeout(timer);
+      let result = null;
+      if (out && out.startsWith('FOUND|')) {
+        const parts = out.split('|');
+        result = { name: parts[1] || null, pid: Number(parts[2]) || null, hWnd: parts[3] || null, shell: parts[4] || null };
+      }
+      detectCache.set(pid, { result, at: Date.now() });
+      inFlight.delete(pid);
+      resolve(result);
+    };
+    const timer = setTimeout(() => { try { child.kill(); } catch {} finish(''); }, DETECT_TIMEOUT_MS);
+    child.stdout.on('data', (b) => { stdout += b.toString(); });
+    child.on('close', () => finish(stdout.trim()));
+    child.on('error', () => finish(''));
+  });
+  inFlight.set(pid, p);
+  return p;
+}
+
+// Sync read of a cached *successful* detection (null if unknown/failed). Safe on the hot path.
+function getCachedHost(pid) {
+  const c = detectCache.get(pid);
+  return c && c.result ? c.result : null;
+}
+
+// Should we (re)spawn detection now? false if cached-success, throttled-failure, or in-flight.
+function shouldDetect(pid) {
+  if (inFlight.has(pid)) return false;
+  const c = detectCache.get(pid);
+  if (!c) return true;
+  if (c.result) return false;
+  return Date.now() - c.at >= FAILED_RETRY_AFTER_MS;
+}
+
 function runPs(scriptName, args = []) {
   return new Promise((resolve) => {
     const scriptPath = path.join(SCRIPTS_DIR, scriptName);
@@ -92,4 +148,4 @@ async function sendPromptToPid(pid, text, cwdLeaf = '', hostPid = 0) {
   return runPs('send-prompt.ps1', args);
 }
 
-module.exports = { flashWindowForPid, focusWindowForPid, sendPromptToPid, detectHostProcessSync };
+module.exports = { flashWindowForPid, focusWindowForPid, sendPromptToPid, detectHostProcessSync, detectHostProcess, getCachedHost, shouldDetect };

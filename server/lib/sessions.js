@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { EventEmitter } = require('events');
-const { detectHostProcessSync } = require('./win-helpers');
+const { detectHostProcess, getCachedHost, shouldDetect } = require('./win-helpers');
 
 const SESSIONS_DIR = path.join(os.homedir(), '.claude', 'sessions');
 const PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
@@ -299,31 +299,42 @@ class SessionRegistry extends EventEmitter {
       if (e.detectedHost) detectByPid.set(e.pid, e.detectedHost);
     }
 
-    // Additions and changes
+    // Additions and changes. B5: host detection is ASYNC (spawn) — a cold scan with many
+    // sessions must never block the event loop on synchronous PowerShell calls. We seed
+    // detectedHost from the cache synchronously; if still unknown, we kick off background
+    // detection that pushes the late result via metaUpdated (same propagation as before).
     for (const [sid, entry] of newEntries) {
       const prev = this.alive.get(sid);
       if (!prev) {
-        const fresh = detectHostProcessSync(entry.pid);
-        entry.detectedHost = fresh || detectByPid.get(entry.pid) || null;
+        entry.detectedHost = getCachedHost(entry.pid) || detectByPid.get(entry.pid) || null;
         this.alive.set(sid, entry);
         this.emit('added', entry);
       } else if (prev.pid !== entry.pid || prev.jsonlPath !== entry.jsonlPath) {
-        const fresh = detectHostProcessSync(entry.pid);
-        entry.detectedHost = fresh || prev.detectedHost || null;
+        entry.detectedHost = getCachedHost(entry.pid) || prev.detectedHost || null;
         this.alive.set(sid, entry);
         this.emit('changed', entry);
       } else if (!prev.detectedHost) {
-        // Earlier detection failed (host process maybe wasn't ready yet) — retry.
-        // SessionState's meta was frozen at attach time, so emit metaUpdated to
-        // propagate the new detectedHost into the running SessionState and trigger
-        // a re-broadcast. Otherwise the dashboard label stays stale forever.
-        const fresh = detectHostProcessSync(entry.pid);
-        entry.detectedHost = fresh;
+        // earlier detection hadn't landed yet — pick up a now-cached result if any.
+        entry.detectedHost = getCachedHost(entry.pid) || null;
         this.alive.set(sid, entry);
-        if (fresh) this.emit('metaUpdated', entry);
+        if (entry.detectedHost) this.emit('metaUpdated', entry);
       } else {
         entry.detectedHost = prev.detectedHost;
         this.alive.set(sid, entry);
+      }
+      // If we still don't have a host and we're allowed to (re)try, detect in the
+      // background. SessionState's meta was frozen at attach time, so when the result
+      // lands we emit metaUpdated to propagate it into the running SessionState and
+      // trigger a re-broadcast (otherwise the dashboard label stays stale forever).
+      if (!entry.detectedHost && shouldDetect(entry.pid)) {
+        const wantSid = sid, wantPid = entry.pid;
+        detectHostProcess(wantPid).then((r) => {
+          const live = this.alive.get(wantSid);
+          if (r && live && live.pid === wantPid && !live.detectedHost) {
+            live.detectedHost = r;
+            this.emit('metaUpdated', live);
+          }
+        }).catch(() => {});
       }
     }
   }
