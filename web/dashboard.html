@@ -48,6 +48,14 @@
             <span class="settings-label">啟用通知<span class="settings-hint">瀏覽器桌面通知（需授權）</span></span>
             <button class="switch" id="notify-toggle" role="switch" aria-checked="true" title="開關桌面通知"><span class="switch-knob"></span></button>
           </div>
+          <div class="settings-row">
+            <span class="settings-label">自動核准 build/test/install<span class="settings-hint" id="aab-hint">需先跑 install-hooks.ps1</span></span>
+            <button class="switch" id="aab-toggle" role="switch" aria-checked="false" title="開＝本次 dashboard 開著時自動核准乾淨的 build/test/install 指令"><span class="switch-knob"></span></button>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label" style="padding-left:10px;">└ 永久套用<span class="settings-hint">跨重啟保留（否則關 dashboard 即失效）</span></span>
+            <input type="checkbox" id="aab-persist" />
+          </div>
         </div>
       </div>
       <button class="icon-btn" id="open-claude-btn" title="開新 Claude 網頁（claude.ai/new，另開分頁）" style="background:var(--text); color:#fff; border-color:var(--text);">

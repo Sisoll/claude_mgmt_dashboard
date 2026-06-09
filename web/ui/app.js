@@ -223,6 +223,51 @@
     }
   });
 
+  // ============== F16: auto-approve build/test/install control ==============
+  const aabToggle = $('#aab-toggle'), aabPersist = $('#aab-persist'), aabHint = $('#aab-hint');
+
+  function renderAab({ hookInstalled, state }) {
+    const disabled = !hookInstalled;
+    aabToggle.disabled = disabled; aabPersist.disabled = disabled;
+    aabToggle.style.opacity = disabled ? '.4' : '';
+    aabHint.textContent = disabled ? '需先跑 install-hooks.ps1（hook 未安裝）'
+                                   : (state === 'permanent' ? '永久套用中' : state === 'session' ? '本次有效' : '關（每次都會問）');
+    const on = state === 'session' || state === 'permanent';
+    aabToggle.setAttribute('aria-checked', on ? 'true' : 'false');
+    aabToggle.classList.toggle('on', on);
+    aabPersist.checked = state === 'permanent';
+  }
+
+  async function loadAab() {
+    try { const r = await fetch('/api/auto-approve-build'); renderAab(await r.json()); } catch {}
+  }
+  async function setAab(state) {
+    try {
+      const r = await fetch('/api/auto-approve-build', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state }),
+      });
+      const d = await r.json();
+      if (!r.ok) { pushToast({ title: '設定失敗', msg: d.error || '' }); return; }
+      const hook = await (await fetch('/api/auto-approve-build')).json();
+      renderAab(hook);
+      if (state === 'permanent') pushToast({ title: '自動核准：永久', msg: 'build/test/install 跨重啟自動核准（可隨時關）' });
+      else if (state === 'session') pushToast({ title: '自動核准：本次', msg: '關 dashboard 後自動失效' });
+    } catch (err) { pushToast({ title: '設定失敗', msg: err.message }); }
+  }
+
+  aabToggle.addEventListener('click', () => {
+    if (aabToggle.disabled) return;
+    const on = aabToggle.classList.contains('on');
+    setAab(on ? 'off' : (aabPersist.checked ? 'permanent' : 'session'));
+  });
+  aabPersist.addEventListener('change', () => {
+    if (aabPersist.disabled) return;
+    const on = aabToggle.classList.contains('on');
+    if (!on) return;                          // checkbox 只在已開時切換永久/本次
+    setAab(aabPersist.checked ? 'permanent' : 'session');
+  });
+  loadAab();
+
   // ============== Toast ==============
   function pushToast({ title, msg }) {
     const stack = $('#toast-stack');
