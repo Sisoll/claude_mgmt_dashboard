@@ -444,9 +444,14 @@ function launchClaudeSession(dir, shell) {
   const det = { detached: true, stdio: 'ignore' };
   let wtArgs, fbArgs;
   if (shell === 'bash') {
-    // run claude in an interactive login bash; keep the shell open after claude exits
-    wtArgs = ['-d', dir, 'bash', '-lic', 'claude; exec bash'];
-    fbArgs = ['/c', 'start', '', '/D', dir, 'bash', '-lic', 'claude; exec bash'];
+    // Resolve Git Bash explicitly so wt doesn't pick WSL's System32\bash.exe.
+    const gitBash = ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files (x86)\\Git\\bin\\bash.exe']
+      .find((p) => { try { return require('fs').existsSync(p); } catch { return false; } }) || 'bash';
+    // Keep the shell open after claude exits. IMPORTANT: no ';' — wt treats ';' as a new-tab
+    // separator and mangles the command (silently opening its default profile = PowerShell).
+    const keep = 'claude && exec bash || exec bash';
+    wtArgs = ['-d', dir, gitBash, '-lic', keep];
+    fbArgs = ['/c', 'start', '', '/D', dir, gitBash, '-lic', keep];
   } else {
     wtArgs = ['-d', dir, 'powershell', '-NoExit', '-Command', 'claude'];
     fbArgs = ['/c', 'start', '', '/D', dir, 'powershell', '-NoExit', '-Command', 'claude'];
