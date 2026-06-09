@@ -11,6 +11,7 @@ const sidecar = require('./lib/sidecar');
 const { flashWindowForPid, focusWindowForPid, sendPromptToPid } = require('./lib/win-helpers');
 const { getQuotas, readCtxRemainForSession, ctxRemainPctFromTokens } = require('./lib/usage');
 const { listDir } = require('./lib/fslist');
+const aab = require('./lib/auto-approve-build');
 
 const PORT = Number(process.env.PORT || 7878);
 const HOST = '127.0.0.1';
@@ -345,12 +346,36 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/auto-approve-build') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ hookInstalled: aab.hookInstalled(), state: aab.readState() }));
+    return;
+  }
+  if (req.method === 'POST' && url.pathname === '/api/auto-approve-build') {
+    let body = '';
+    req.on('data', (c) => { body += c.toString(); });
+    req.on('end', () => {
+      let state = 'off';
+      try { state = String(JSON.parse(body || '{}').state || 'off'); } catch {}
+      try {
+        const now = aab.setState(undefined, state);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: true, state: now }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   // F12: shut down the whole dashboard server. Respond first, then exit so the
   // response + WS close frames flush. autostart only runs at Windows login, so
   // after this the user must manually re-run start-server.cmd / .vbs.
   if (req.method === 'POST' && url.pathname === '/api/shutdown') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ ok: true }));
+    try { aab.clearOnShutdown(); } catch {}
     setTimeout(() => process.exit(0), 150);
     return;
   }
@@ -368,6 +393,7 @@ const server = http.createServer((req, res) => {
     let done = false;
     const relaunch = () => {
       if (done) return; done = true;
+      try { aab.clearOnShutdown(); } catch {}
       try {
         // Prefer the silent VBS launcher (hidden window, same as autostart) so the
         // respawn doesn't flash a console window; fall back to a hidden node spawn.
@@ -498,6 +524,7 @@ wss.on('connection', (ws) => {
 
 server.on('listening', () => {
   console.log(`[claude-mgmt] dashboard server listening on http://${HOST}:${PORT}`);
+  try { aab.reconcileOnStartup(); } catch {}   // F16: default each launch = off (unless persist)
   registry.start();
 });
 // EADDRINUSE retry — covers the F19 restart handoff where the previous process
@@ -518,5 +545,6 @@ server.listen(PORT, HOST);
 process.on('SIGINT', () => {
   registry.stop();
   for (const t of tailers.values()) t.stop();
+  try { aab.clearOnShutdown(); } catch {}
   server.close(() => process.exit(0));
 });
