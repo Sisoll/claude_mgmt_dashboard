@@ -1299,6 +1299,8 @@
       fsCurrent.textContent = fsCurPath || '選一個資料夾…';
       fsOpen.disabled = !fsCurPath;            // 磁碟機根清單層不可直接開
       if (fsCurPath) localStorage.setItem('fs.lastPath', fsCurPath);
+      if (data.home) localStorage.setItem('fs.home', data.home);
+      if (data.drives && data.drives.length) localStorage.setItem('fs.drives', JSON.stringify(data.drives));
       fsRenderCrumb(fsCurPath);
       fsList.innerHTML = '';
       const items = (data.drives && data.drives.length)
@@ -1315,11 +1317,21 @@
     } catch (err) { pushToast({ title: '讀目錄失敗', msg: err.message }); }
   }
 
+  // Warm the drive/home cache once on load (also triggers the server-side fsutil prewarm),
+  // so the first picker open already knows its default landing (server drive root).
+  fetch('/api/fs/list').then((r) => r.json()).then((d) => {
+    if (d && d.home) localStorage.setItem('fs.home', d.home);
+    if (d && d.drives && d.drives.length) localStorage.setItem('fs.drives', JSON.stringify(d.drives));
+  }).catch(() => {});
+
   $('#new-session-btn').addEventListener('click', () => {
     fsModal.classList.remove('hidden');
     fsRenderShell();
     fsRenderRecent();
-    fsLoad(localStorage.getItem('fs.lastPath') || '');
+    fsCrumb.innerHTML = '';
+    fsList.innerHTML = '<div class="fs-empty">載入中…</div>';
+    // default landing = the drive root of where the server runs (e.g. D:\), first level.
+    fsLoad(localStorage.getItem('fs.home') || localStorage.getItem('fs.lastPath') || '');
   });
   $('#fs-close').addEventListener('click', () => fsModal.classList.add('hidden'));
   fsModal.addEventListener('click', (e) => { if (e.target === fsModal) fsModal.classList.add('hidden'); });

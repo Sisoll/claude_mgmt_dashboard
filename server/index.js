@@ -442,20 +442,25 @@ const server = http.createServer((req, res) => {
 function launchClaudeSession(dir, shell) {
   const { spawn } = require('child_process');
   const det = { detached: true, stdio: 'ignore' };
-  let wtArgs, fbArgs;
+
   if (shell === 'bash') {
-    // Resolve Git Bash explicitly so wt doesn't pick WSL's System32\bash.exe.
-    const gitBash = ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files (x86)\\Git\\bin\\bash.exe']
+    // "Open Git Bash Here" style: git-bash.exe opens a mintty window in <dir> and runs claude.
+    // git-bash.exe (unlike wt) does NOT mangle ';', so we keep the shell open via 'claude; exec bash'.
+    const gitBashExe = ['C:\\Program Files\\Git\\git-bash.exe', 'C:\\Program Files (x86)\\Git\\git-bash.exe']
+      .find((p) => { try { return require('fs').existsSync(p); } catch { return false; } });
+    if (gitBashExe) {
+      try { spawn(gitBashExe, ['--cd=' + dir, 'bash', '-lic', 'claude; exec bash'], det).unref(); return; } catch {}
+    }
+    // fallback (no git-bash.exe): open an interactive Git Bash via `start` in <dir>.
+    const gitBashBin = ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files (x86)\\Git\\bin\\bash.exe']
       .find((p) => { try { return require('fs').existsSync(p); } catch { return false; } }) || 'bash';
-    // Keep the shell open after claude exits. IMPORTANT: no ';' — wt treats ';' as a new-tab
-    // separator and mangles the command (silently opening its default profile = PowerShell).
-    const keep = 'claude && exec bash || exec bash';
-    wtArgs = ['-d', dir, gitBash, '-lic', keep];
-    fbArgs = ['/c', 'start', '', '/D', dir, gitBash, '-lic', keep];
-  } else {
-    wtArgs = ['-d', dir, 'powershell', '-NoExit', '-Command', 'claude'];
-    fbArgs = ['/c', 'start', '', '/D', dir, 'powershell', '-NoExit', '-Command', 'claude'];
+    try { spawn('cmd', ['/c', 'start', '', '/D', dir, gitBashBin, '-lic', 'claude; exec bash'], det).unref(); } catch {}
+    return;
   }
+
+  // powershell (default): Windows Terminal, fall back to a detached `start … /D <dir>` window.
+  const wtArgs = ['-d', dir, 'powershell', '-NoExit', '-Command', 'claude'];
+  const fbArgs = ['/c', 'start', '', '/D', dir, 'powershell', '-NoExit', '-Command', 'claude'];
   let child;
   try {
     child = spawn('wt', wtArgs, det);
@@ -538,6 +543,7 @@ server.on('listening', () => {
   console.log(`[claude-mgmt] dashboard server listening on http://${HOST}:${PORT}`);
   try { aab.reconcileOnStartup(); } catch {}   // F16: default each launch = off (unless persist)
   registry.start();
+  setImmediate(() => { try { listDir(''); } catch {} });  // F21: warm drive-list cache (fsutil) off the hot path
 });
 // EADDRINUSE retry — covers the F19 restart handoff where the previous process
 // hasn't fully released the port yet. Give up (exit) after ~5s of retries.
