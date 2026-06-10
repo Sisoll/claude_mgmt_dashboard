@@ -52,6 +52,58 @@ powershell -ExecutionPolicy Bypass -File uninstall-autostart.ps1
 
 ---
 
+## 常用指令
+
+> Windows。預設 port `7878`（要換把下面的 `7878` 改掉，或啟動時 `PORT=9000 node index.js`）。
+
+### Port 被佔用 → 砍掉佔用的 process
+
+```powershell
+# 看誰佔用 7878（拿 PID）
+Get-NetTCPConnection -LocalPort 7878 -State Listen | Select-Object OwningProcess
+
+# 直接砍掉佔用 7878 的 process（最常用）
+Get-NetTCPConnection -LocalPort 7878 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
+cmd / git-bash 版（`netstat` + `taskkill`）：
+
+```bash
+netstat -ano | findstr :7878      # 最後一欄是 PID
+taskkill //PID <PID> //F          # git-bash 用 //；純 cmd 用 /PID <PID> /F
+```
+
+### 砍掉所有殘留的 dashboard server（多個 zombie node 時）
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+  Where-Object { $_.CommandLine -like '*claude_mgmt*index.js*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+### 啟動 / 重啟 / 關閉
+
+```bash
+cd server && node index.js                          # 啟動（前景）
+cd server && node --watch index.js                  # 開發模式（改檔自動 reload）
+PORT=9000 node index.js                             # 換 port 啟動
+
+curl -X POST http://127.0.0.1:7878/api/restart      # 原地重啟（起新 process 取代，前端自動連回）
+curl -X POST http://127.0.0.1:7878/api/shutdown     # 關閉整個 server
+```
+
+> topbar 也有 ⟳ 重啟 / ⏻ 關閉 鈕，免打指令。
+
+### 測試 / 語法檢查
+
+```bash
+cd server && node --test                            # 跑全部單元測試
+cd server && node --test test/usage.test.js         # 只跑單一測試檔
+node -c server/index.js                             # 只檢查語法（不執行）
+```
+
+---
+
 ## 它在看什麼
 
 不打 Claude API、不 hook process。純粹讀 `~/.claude/` 底下的檔案：

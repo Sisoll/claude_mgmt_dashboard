@@ -4,7 +4,7 @@
 > **讀取規則**：平常只讀下方「Roadmap」即可，**不要讀全份**；要動某項時再讀該項 Details。
 > **完成後**：發版時把該項從本檔移除，寫進 `bugfix.md` / `feature.md`（見 `release` skill）。
 > **標記**：`[BUG]` = 修錯行為；`[FEAT]` = 新功能或改善。
-> **目標版本**：v0.2.1（F11 token 小眼睛 + F19 ↗ 開 Claude + F20 收合全部）已發。後續見下方 **v0.2.x**（個人客製化）。
+> **目標版本**：v0.2.2（F15 語音輸入 + F16 自動核准 build/test + F21 新 session）已發。後續見下方 **v0.2.x**（個人客製化）。
 > **大版規劃**：**V1.0.0 = HTML + Tauri 並存且功能對等（Tauri ⊇ HTML）** → 詳見 [`PLAN-v1.0.0-tauri.md`](PLAN-v1.0.0-tauri.md)（未動工）。
 
 ## Roadmap（依版本分配）
@@ -15,23 +15,24 @@
 ### v0.2.x — 個人客製化 / 設定（提高使用者黏著度）
 > 主軸：讓 dashboard 變「你的」—— 客製化鈴聲 / icon、個人開關設定，黏著度↑。
 
-#### v0.2.2 — 提醒客製化
+#### v0.2.3 — 提醒客製化
 - F13 `[FEAT]` 自訂通知鈴聲（上傳音檔）
 - F14 `[FEAT]` orbit icon + 圖庫（多張/挑選/刪除/記住上次/只在「亮」時/支援動圖）
 
-#### v0.2.3 — 互動 / 個人設定
-- F15 `[FEAT]` 送 prompt 語音輸入（speech-to-text）
-- F16 `[FEAT]` 自動核准「編譯/測試/安裝」開關（預設關）
-
-#### v0.2.4 — new session 啟動
-- F21 `[FEAT]` topbar「新 session」：選資料夾 → 開 powershell/bash → 主動執行 claude
+### v0.3 — 可攜性完成 / 安裝器 / 能力偵測（V1.0.0 前置 gate）
+> 主軸：把「可勾選安裝 hooks + 沒裝就自動關功能」做成框架，補完 F18 起的可攜性地基。
+> 這是 PLAN §8 指定「V1.0.0 開工前必過」的 gate；**同一套能力偵測 V1.0.0 沿用解「native 在不在」**。吸收原 V1.0.0 M0。
+> 順序由使用者 2026-06-09 定：**框架先（v0.3）→ Tauri（V1.0.0）**。
+- F22 `[FEAT]` 可勾選安裝器（`install-hooks.ps1` 一般化：選擇安裝/設定哪些 dashboard hook / statusline / settings.json 掛法）
+- F23 `[FEAT]` 能力偵測 + 自動 gate（feature registry：功能↔依賴；缺依賴→功能變灰/隱藏/提示；F16 專屬 gate 退役改吃這套；吸收 V1.0.0 M0 盤點）
 
 ### 未定版（floating）
-- B4  `[BUG]` ⛔ 偶發狀態回歸 —— 需 repro，重現才排進版本
+- B4  `[BUG]` ⛔ 偶發狀態回歸 —— 需 repro，重現才排進版本- F24 `[FEAT]` 🌙 dark mode（FE UI 深色主題切換）—— 待定版，建議 v0.2.x 外觀客製化；需先 brainstorming（見 Details）
+- F25 `[FEAT]` 🔆 亮度 / 調暗 slider（可拉動 bar 調整整體亮度，主要背景，文字同步微暗但仍清晰）—— 獨立 FE，與 F24 同屬外觀客製化；需先 brainstorming（見 Details）
 
 ### V1.0.0 — HTML + Tauri 並存且對等（大版，獨立 track）
 → 詳見 [`PLAN-v1.0.0-tauri.md`](PLAN-v1.0.0-tauri.md)
-- M0   對等基準線盤點（HTML 功能 checklist）
+- M0   ➡️ **移轉 v0.3／F23** —— 對等基準線盤點（HTML 功能 checklist）改由 v0.3 feature registry 一併產出結構化版本，V1.0.0 直接沿用
 - M0.5 ✅ 零 build 模組化（v0.1.5 已完成 externalize：`web/ui/{styles.css,app.js}` + 改 CLAUDE.md 單檔條款；細拆 ws/render/status/host/… 待後續增量）
 - M1   Tauri 殼 + Node sidecar（對等即達成）+ tray
 - M2   原生 Toast 通知（帶按鈕）
@@ -64,46 +65,33 @@
 - 待實作時決定：icon 取代 glow 還是疊加？要不要依狀態上色（raster 難套，SVG / CSS filter 才行）？「上次選用」是全域一張、還是每個 status / 每個 session 各自記？（觸發時機已定案：只在「亮」時顯示。）
 - 可行性：✅ 做得到，但比鈴聲複雜（要重寫 orbit 機制 + 做圖庫 CRUD）。
 
-### F15 `[FEAT]` 送 prompt 支援語音輸入（speech-to-text）
-- 需求：送 prompt 時可用語音輸入，講話轉文字填進卡片的 send-prompt textarea（`HTML:1837`），再由使用者檢查後手動送出。
-- 實作：瀏覽器原生 Web Speech API（`webkitSpeechRecognition`），`lang='zh-TW'`；在 send-prompt textarea 旁加 🎤 鈕，按下開始/停止辨識，`interimResults` 即時上字，結果填入 textarea。沿用現有「不自動 Enter、使用者檢查後送出」流程（與 `send-prompt.ps1` 一致）。
-- 卡點 / 注意：
-  - Web Speech API 在 Chrome (`webkitSpeechRecognition`) 可用，但**音訊會送 Google 伺服器**辨識（需連網 + 隱私考量）；Firefox 支援差、Safari 限制多。
-  - dashboard 跑在 `127.0.0.1` = secure context，麥克風 `getUserMedia` / SpeechRecognition 權限 OK。
-  - 想完全本機 / 離線 → 要接後端 STT（如 Whisper local），重很多，單人用通常不值得。
-- 待實作時決定：只做 send-prompt 一處，還是 rename / 自訂 status 文字也要？是否要語言切換鈕（zh-TW / en）？
-- 可行性：✅ 做得到（Chrome 下 Web Speech API 最省事）；想離線就要後端，成本高。
+### F22 `[FEAT]` 可勾選安裝器（install-hooks.ps1 一般化）
+- 需求：一個 installer 讓使用者**勾選**要安裝/設定哪些 dashboard 依賴（3 個 dashboard hooks：Notification / Stop / auto-approve-build；statusline 腳本；settings.json 掛法）。延續 F18 可攜性，補完「clone 回去能自助裝起來」最後一哩。
+- 由來：v0.2.2 的 F16 先做了**最小、F16 專屬**的 `install-hooks.ps1`（只裝 auto-approve-build hook）當拋棄式原型；F22 把它一般化成可勾選多項。
+- 仿現有 `install-autostart.ps1` 風格（PowerShell installer）。使用者於 2026-06-09 定：放 v0.3，不擠進 v0.2.2。
 
-### F16 `[FEAT]` 自動核准「編譯/測試/安裝/抓取」類權限的開關（預設關）
-- 需求：dashboard 加一個開關；開啟後，當 session 跳「要不要跑 mvn test / mvn compile / pnpm install / 抓檔案 / 跑測試」這類權限詢問，直接幫使用者 pass（auto-approve）。**預設關**。
-- 已有基礎（重要）：PreToolUse hook 已存在 `~/.claude/hooks/auto-approve.sh`（settings.json 已掛 matcher `Bash|Write|Edit|MultiEdit`）。機制完整：
-  - master kill-switch：`~/.claude/auto-approve.enabled` 存在才啟用。
-  - 硬 deny veto：chaining `[>|;&\`]`、`$()`、`rm/mv/cp/sudo/chmod/kill/...`、git 寫入、interpreter、network 一律不放行。
-  - 保守 allow-list：read-only 工具（Read/Glob/Grep/...）+ Write 建新檔 + Bash 唯讀（cat/ls/git status/...）。
-  - audit log：`~/.claude/auto-approve.log`。
-  - ⚠️ 目前**刻意 DENY install**（deny 正則含 `(npm|pnpm|yarn|pip|...)+(install|i|add|get|...)`），build/test 也沒進 allow-list → 正是 F16 要補的。
-- 實作（輕量）：
-  - hook：在 auto-approve.sh 加「第二層 tier」—— 若 `~/.claude/auto-approve-build.enabled` 存在，對「乾淨單一指令」放行 build/test/install/fetch 類；**仍保留硬 deny**（chaining/redirect/subshell/破壞性動詞）→ 只放單純一條 build/test/install，不放組合技。
-  - FE：dashboard 加開關（topbar 或 settings），預設關，狀態要持久（讀 flag 是否存在）。
-  - server：開關透過 Node server 寫/刪 `~/.claude/auto-approve-build.enabled`（FE 不能直接碰 fs）→ 加 `/api/*` endpoint（沿用現有風格）。
-- 指令清單（使用者只列部分，已補完，分風險）：
-  - 編譯/build（低）：`mvn compile/test-compile/verify`、`gradle build/assemble`、`./gradlew build`、`tsc`、`npm/pnpm/yarn run build`、`vite build`、`go build/vet`、`cargo build/check`、`make`、`cmake --build`、`dotnet build`
-  - 測試（低）：`mvn test`、`gradle test`、`npm/pnpm/yarn test`、`jest/vitest/mocha/playwright/cypress`、`go test`、`cargo test`、`pytest`/`python -m pytest`/`tox`、`phpunit`、`rspec`、`dotnet test`
-  - lint/format/typecheck（低、唯讀型）：`eslint`、`prettier --check`、`tsc --noEmit`、`ruff check`、`mypy`、`golangci-lint`、`gofmt -l`、`black --check`
-  - 安裝/抓相依（⚠️ 中：install 會跑 postinstall script＝任意程式碼）：`npm install/ci`、`pnpm install`、`yarn`、`bun install`、`pip/pip3 install`、`poetry/pipenv install`、`uv pip install`、`mvn dependency:resolve/go-offline`、`go mod download/tidy`、`go get`、`cargo fetch`、`bundle install`、`composer install`、`dotnet restore`
-  - 抓檔案/網路（⚠️ 需確認）：`git fetch`、`git pull`（動 working tree）、`git clone`、`curl/wget` 下載 —— 「抓檔案」語意不明，預設先不納，等使用者定。
-- 安全注意：install 本質會執行 script；務必只放行「單一、無 chaining/redirect/subshell」指令；保留 audit log；預設關。
-- ⚠️ **實務發現（2026-06-03，使用者實測）**：Claude 常把 compile/test 包成**複合指令**，例如 `mvn -q compile 2>&1 | tail -6; echo "COMPILE_EXIT=${PIPESTATUS[0]}"; ls -1 target/...`。現有硬 deny 會擋任何 `|`/`;`/`>`/`&` → 這類**即使 F16 做好也不會自動過**（F16 只放單一乾淨指令如 `mvn -q compile`）。→ F16 要決定：(a) 維持只放單一乾淨指令（安全但實用性打折，多數實際 prompt 仍會跳）；或 (b) 特例放行「build/test 主指令 + 純讀取尾管（`| tail`/`| head`/`| grep`）+ `; echo`/`; ls` 這類無害收尾」的安全組合 pattern。這是 F16 實用度的關鍵設計點。
-- 待實作時決定：開關全域（一個 flag、所有 session）還是 per-session（hook 有 session_id 可比對）？「抓檔案」要含 git pull/curl 嗎？沿用 `auto-approve.enabled` 還是獨立 `auto-approve-build.enabled`（建議獨立，風險分層）。
+### F23 `[FEAT]` 能力偵測 + 自動 gate（feature registry）
+- 需求：dashboard 維護一份 **feature registry（功能↔依賴對應）**，啟動/執行時**偵測每個功能的依賴是否就緒**（hook 裝了沒、statusline tmp 在不在、flag 可寫否…），缺依賴的功能**自動變灰/隱藏/給提示**，不再讓使用者面對「按了沒反應」。
+- 吸收 V1.0.0 **M0**（對等基準線盤點＝HTML 功能 checklist）：那份 checklist 正好是 registry 的種子資料，結構化後同時餵 F22 安裝器與本能力偵測。
+- v0.2.2 F16 的 **F16 專屬 gate**（沒裝 hook → disable toggle）是本框架第一個消費者，F23 落地後退役改吃這套。
+- 與 V1.0.0 銜接：同一套 capability probe，V1.0.0 只多加「native(Tauri) 可用?」一軸（PLAN §2 host adapter）。順序 **框架先（v0.3）→ Tauri** 由使用者 2026-06-09 定。
 
-### F21 `[FEAT]` topbar「新 session」：選資料夾 → 開 shell → 跑 claude
-- 需求：承接原 `+`「New session」語意 —— 點按鈕 → 選一個資料夾目錄 → 在該目錄開啟 powershell/bash → 主動執行 `claude`，等於真的起一個新的 Claude Code session。
-- 卡點：瀏覽器沙箱拿不到可靠的本機絕對路徑、也不能 spawn terminal → 必須走 Node server。
-- 實作方向：
-  - FE：資料夾選取（瀏覽器 `<input webkitdirectory>` 拿不到絕對路徑 → 可能要 server 端目錄 picker，或請使用者貼路徑）。
-  - server：新增 `/api/*` endpoint，用 `child_process` spawn 開新終端（Windows：`wt`/`start`/`powershell -NoExit -Command "cd <dir>; claude"`）。
-  - 任意目錄 spawn＝執行任意程式，要確認/白名單；預設保守。
-- 備註：此能力在 V1.0.0 Tauri（native 檔案對話框 + spawn）會更自然，屆時可優先走 native 實作。
+### F24 `[FEAT]` dark mode（FE UI 深色主題）
+- 需求：dashboard 加深色主題，可切換。
+- ⚠️ 設計前置：現有 UI 是手調暖色（cream + terracotta），CLAUDE.md 明訂「未經明確要求不得重構樣式/版面」→ **dark mode 要先走 brainstorming 設計**（配色、對比、切換點、是否跟系統 `prefers-color-scheme`）。
+- 技術可行性：`web/ui/styles.css` 已用 CSS 變數（`--accent`/`--text`/`--surface`/`--surface-2`/`--border`/`--text-muted`/`--text-faint`…）→ 深色＝在 `:root[data-theme="dark"]`（或 `@media (prefers-color-scheme: dark)`）覆寫這組變數 + topbar 切換鈕 + localStorage 持久，多數元件不必改 markup。
+- 待設計時決定：手動切換 vs 跟系統、深色配色細節、orbit/脈動/狀態色在深色下的可讀性、favicon 是否換。
+- 由來：使用者 2026-06-09 於 v0.2.2 實作中插入；先入 todo（floating），未實作。
+
+### F25 `[FEAT]` 亮度 / 調暗 slider（整體亮度可調）
+- 需求：給一個可拉動的 bar（slider）調整 dashboard 整體「亮度」，主要影響背景；文字也跟著微暗一點，但仍要清楚可讀。等於在「現在的暖色亮底」與「更暗」之間連續調。
+- 與 F24 關係：F24＝離散主題切換（亮/暗），F25＝連續亮度微調（主要背景）。兩者互補、可疊加；設計時要定義交互（亮度作用在當前主題之上？）。使用者 2026-06-09 指明 **F25 是獨立 FE**（不併進 F24）。
+- 技術可行性候選（待 brainstorming 定）：
+  - (a) slider → CSS 變數：把 `--surface`/`--surface-2`/背景底色依 slider 連續變暗，`--text*` 同步小幅變暗但保持對比（顧 WCAG，不能糊）。較可控、文字可讀性好。
+  - (b) wrapper `filter: brightness()`：最簡單但會連文字一起均勻變暗、可能傷可讀性 → 較不推薦或需配合加粗文字。
+  - localStorage 持久；topbar 或設定面板放 slider。
+- 待設計時決定：作用範圍（純背景 vs 全域）、與 F24 dark mode 疊加邏輯、最暗下限（保證可讀）、是否與系統亮度無關。
+- 由來：使用者 2026-06-09 於 v0.2.2 實作中補充（並更正為獨立 FE）；先入 todo（floating），未實作。
 
 ### B4 `[BUG]` 狀態偵測偶發回歸（狀況不明）
 - 現象：某個已修的狀態判斷在某些情況又出現，無穩定 repro。

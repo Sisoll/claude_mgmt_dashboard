@@ -62,7 +62,7 @@ claude_mgmt/
 
 ## 4. 階段里程碑（每階段都可用、可回退）
 
-- **M0 — 對等基準線盤點**：把 HTML 現有全部功能列成清單（見 §6），當 Tauri 必達 checklist + 回歸清單。
+- **M0 — 對等基準線盤點** ➡️ **移轉 v0.3／F23**：把 HTML 現有全部功能列成清單（見 §6），當 Tauri 必達 checklist + 回歸清單。改由 v0.3 的 feature registry（F23）一併產出結構化版本，V1.0.0 直接沿用、不重做。
 - **M0.5 — 零 build 模組化（共用 UI 先整理乾淨，Tauri 動工前）**：把 `Claude_Sessions_Dashboard.html` 用**原生 ES modules + 外部 CSS** 拆檔，**不引入 build step、不上框架**，在它（共用 UI）繼續變大前先模組化。
   - 建議結構：HTML 只留 markup 殼 + `<link rel=stylesheet href="ui/styles.css">` + `<script type="module" src="ui/app.js">`；JS 拆 `ui/{app,ws,render,status,host,actions,notify,settings,util}.js`。
   - 其中 **`ui/host.js` 就是 §2 的 host adapter（`window.__TAURI__` 偵測）集中處** —— 模組化讓 Tauri/瀏覽器雙路徑更乾淨，是 V1 的助力不是阻力。
@@ -109,4 +109,5 @@ claude_mgmt/
 ## 8. 下一步
 
 - ⚠️ **開工前置 gate（使用者 2026-06-03 指定）**：todo 的 **F18（可攜性 / 降低個人依賴）必須先在 v0.3.x 完成**，才開始 V1.0.0 / Tauri —— 不能在隱性個人依賴（statusline quota、全域 hooks）的地基上蓋散佈版。重點：ctx remain 改成從原生 JSONL 自算、quota 走文件 / setup-prompt + 缺檔優雅降級。
+  - **更新（2026-06-09）**：F18 第一批已出貨（v0.1.4／v0.1.5：ctx native 自算、缺依賴優雅降級、SETUP.md）。**前置 gate 的剩餘部分 = v0.3 的 F22（可勾選安裝器）+ F23（能力偵測自動 gate）**。順序由使用者拍板：**框架先（v0.3）→ Tauri（V1.0.0）**；本計畫的 host adapter（§2）/ M0（§4）皆改建立在 v0.3 框架之上。
 - 之後等使用者說「開始實作 M1」再動工。M1 完成即達成「HTML + Tauri 並存且對等」的最小可出貨狀態。

@@ -2,6 +2,9 @@
 
 > 已完成的功能 / 改善，**最新在上**。每條可直接當 commit message 用。
 
+- F21 topbar「新 session」：雙欄資料夾 picker（瀏覽 + 記住上次 + noise/archive 過濾）→ 選 PowerShell/Bash → 在該目錄開新終端並自動跑 `claude`；server 用 `fsutil fsinfo drives` 快速列碟 + 預設落在 server drive root，Bash 走 `git-bash.exe --cd=<dir> -c "claude; exec bash"`、PS 走 `wt … powershell -NoExit -Command claude` (`server/lib/fslist.js`, `server/index.js`, `web/ui/app.js`, `web/dashboard.html`, `web/ui/styles.css`)
+- F16 自動核准「編譯/測試/安裝」開關（**預設關**）：獨立 PreToolUse hook `hooks/auto-approve-build.sh`（旗標 gate + 硬 deny + 主指令白名單 + 無害尾管 + audit log），3-state 旗標機（off/session/permanent）+ `/api/auto-approve-build` + 啟動 reconcile／關閉 clear；FE toggle + 永久 checkbox + 能力 gate（沒裝 hook 變灰）；`install-hooks.ps1` 一鍵裝 hook + 註冊 `settings.json` (`hooks/auto-approve-build.sh`, `server/lib/auto-approve-build.js`, `server/index.js`, `web/ui/app.js`, `install-hooks.ps1`)
+- F15 送 prompt 語音輸入：send-prompt textarea 旁加 🎤 鈕，Web Speech API（`webkitSpeechRecognition`, zh-TW, `interimResults` 即時上字）填入 textarea，沿用「不自動 Enter、使用者檢查後送出」 (`web/ui/app.js`, `web/dashboard.html`)
 - F11 每個 prompt 的 token 消耗「小眼睛」👁：turn-head 在時間與 prompt 間顯示該輪 token（W＝萬），依量級 6 級上色（白＝處理中／綠<1W／青<2.5W／黃<5W／橙<10W／紅≥10W）；指標＝input+cache_creation+output（排除 cache_read）。關鍵：Claude Code 每個 assistant 訊息按 content block 拆多行、每行重複 usage → 新增 `_tokenCountedMsgIds` 以 message id dedupe，per-turn 與 session 總量都只計一次（順帶修正既有 session 總量被多算）。done＝stop_reason≠tool_use (`server/lib/parse-state.js`, `web/ui/app.js`, `web/ui/styles.css`)
 - F19 topbar 死按鈕 `+` 改成 ↗（external-link）並接 `window.open('https://claude.ai/new','_blank','noopener')`，另開分頁開新 Claude 網頁（原「new session」語意移交 F21）(`web/dashboard.html`, `web/ui/app.js`)
 - F20 「收合所有展開卡片」按鈕：Active sessions 標題列 refreshed 右側加捲簾上收圖示鈕，一鍵把所有展開卡片收合並以既有 `setCollapsed` WS 持久化；刻意保留 needs-attention 脈動（`.section-title` 改用 `.section-actions` flex 容器）(`web/dashboard.html`, `web/ui/app.js`, `web/ui/styles.css`)

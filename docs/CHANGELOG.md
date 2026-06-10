@@ -2,6 +2,20 @@
 
 Release notes（標題為主）。最新在上。
 
+## v0.2.2
+### Features — 互動 / 操作
+- F15 送 prompt 語音輸入（Web Speech API, zh-TW，填入後自行檢查送出）
+- F16 自動核准「編譯/測試/安裝」開關（預設關）：獨立 PreToolUse hook + 3-state 旗標 + FE toggle/能力 gate + `install-hooks.ps1`
+- F21 topbar「新 session」：雙欄資料夾 picker → 選 PowerShell/Bash → 開新終端自動跑 `claude`
+
+### Fixes
+- B5 host 偵測同步阻塞 server（多 session 冷啟動 ~60s→~4s）：偵測改 async + 失敗重試節流
+- F16 hook 安全強化：deny 補 `<`／inline URL／絕對·家目錄·上層路徑參數，尾管限純 stdin 過濾，移除裸 `yarn` 分支（+21 回歸測試）
+- F16 旗標 crash 序：off/session 先刪 persist 再動 enabled（避免關閉後「永久」復活）
+- F16 `install-hooks.ps1` settings.json UTF-8 BOM → 無效 JSON
+- F15 mic 切換卡第二張點擊靜默失敗（stopMic 即時清狀態 + onend 守衛）
+- F21 Bash 選項誤開 PowerShell（`wt` `;` 分頁分隔 + 多餘 `bash` 引數）→ git-bash.exe
+
 ## v0.2.1
 ### Features — 資訊密度 / 快速操作
 - F11 每個 prompt 的 token 消耗「小眼睛」👁：turn 顯示該輪 token（W＝萬）+ 6 級色階；指標＝input+cache_creation+output（不含 cache_read）；以 message id dedupe 修正按 content block 拆行造成的重複計算

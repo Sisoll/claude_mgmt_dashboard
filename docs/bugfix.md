@@ -2,6 +2,12 @@
 
 > 已修的 bug，**最新在上**。每條可直接當 commit message 用。
 
+- F16 hook 安全強化（發版前 code review）：① deny 補 `<` → 擋 input-redirect 與 process-substitution `<(...)`；② 無害尾管只允許純 stdin 過濾（grep/head/tail/wc/echo）並擋路徑參數／遞迴旗標 → 擋 `| cat ~/.ssh/id_rsa`、`| grep -r secret`；③ 移除裸 `yarn` 分支 → 擋 `yarn exec/dlx/add`；④ deny 補 inline URL 與絕對／家目錄／上層路徑參數 → 擋 `jest --globalSetup=/tmp/evil.js`、`pytest /abs`、`make -f`、`npm --registry http://evil`；標註「便利非安全邊界」+21 條回歸測試 (`hooks/auto-approve-build.sh`, `server/test/hook-auto-approve-build.test.js`)
+- F16 旗標 crash 序：`setState('off'/'session')` 先刪 enabled 後刪 persist → 兩步間崩潰留 persist 殘留 → `reconcileOnStartup` 復活「永久」（使用者已關卻復活）。改成先刪 persist 再動 enabled（crash-safe 退回 off）+ 順序回歸測試 (`server/lib/auto-approve-build.js`, `server/test/auto-approve-build.test.js`)
+- F16 `install-hooks.ps1` 寫 `settings.json` 帶 UTF-8 BOM → 無效 JSON：改無 BOM 寫法 (`install-hooks.ps1`)
+- F15 mic 切換卡點擊靜默失敗：`stopMic()` 只在 async `onend` 清 `micRec` → 緊接的 `startMic()` 看到 `micRec` 仍非 null 而 early return。改 `stopMic()` 即時清 `micRec`/`micBtnActive` 並重置按鈕，`onend` 加守衛避免清掉剛啟動的新 rec (`web/ui/app.js`)
+- F21 終端啟動修正：Bash 選項誤開 PowerShell（`wt` 的 `;` 被當分頁分隔 + WSL bash 混淆）→ 改 `git-bash.exe --cd=<dir>`；並移除多餘開頭 `bash` 引數（被當 script operand）(`server/index.js`)
+- B5 host 偵測同步阻塞 server（多 session 冷啟動 ~60s→~4s）：`sessions.js` scan（startup + 每 2s poll）對每個 session 同步 `spawn detect-host.ps1` 阻塞 event loop；改 async 偵測（測到再 emit `metaUpdated` 推送）+ 失敗重試節流（60s）(`server/lib/sessions.js`, `server/lib/win-helpers.js`, `server/test/win-helpers.test.js`)
 - detect-host 一直彈 PowerShell 視窗：`win-helpers.js` 的 `execFileSync` 漏 `windowsHide` → 補上；重構成可 mock + 加回歸測試（14 tests）(`server/lib/win-helpers.js`, `server/test/win-helpers.test.js`)
 - 「待定」≠「自訂」：custom 原被併入 pending 計數/篩選 → 自訂自成一類（獨立 chip + 計數 + filter）；待定/自訂卡片給專屬配色（灰/紫，原本跟 running 一樣白；自訂用新 `--custom` 紫，與分支 terracotta 區分）(`Claude_Sessions_Dashboard.html`)
 - reset 鈕「閃一下就消失」：runtime ticker 每秒覆寫整個 `.runtime`（含 reset 鈕）→ ticker 改只更新 `.runtime-time`，reset 搬到「標記狀態」下拉旁 (`Claude_Sessions_Dashboard.html`)
