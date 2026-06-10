@@ -1,4 +1,4 @@
-const { test } = require('node:test');
+const { test, mock } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
@@ -49,6 +49,36 @@ test('shutdown clears session but keeps permanent', () => {
   assert.strictEqual(m.readState(a), 'off');
   const b = tmpHome(); m.setState(b, 'permanent'); m.clearOnShutdown(b);
   assert.strictEqual(m.readState(b), 'permanent');
+});
+
+// #7 crash-safety: persist must be removed BEFORE enabled is touched/removed, so an
+// interrupt between the two fs ops can never leave persist-without-enabled (which
+// reconcileOnStartup would read as "permanent" and resurrect a state the user disabled).
+function fsMutationOrder(fn) {
+  const order = [];
+  const rmReal = fs.rmSync, wReal = fs.writeFileSync;
+  const t1 = mock.method(fs, 'rmSync', (p, o) => { order.push(['rm', p]); return rmReal.call(fs, p, o); });
+  const t2 = mock.method(fs, 'writeFileSync', (p, d) => { order.push(['touch', p]); return wReal.call(fs, p, d); });
+  try { fn(); } finally { t1.mock.restore(); t2.mock.restore(); }
+  return order;
+}
+
+test('#7 setState off removes persist before enabled (crash-safe)', () => {
+  const h = tmpHome(); m.setState(h, 'permanent');
+  const order = fsMutationOrder(() => m.setState(h, 'off'));
+  const idxPersist = order.findIndex(([, p]) => p === m.persistPath(h));
+  const idxEnabled = order.findIndex(([, p]) => p === m.enabledPath(h));
+  assert.ok(idxPersist >= 0 && idxEnabled >= 0, 'both paths mutated');
+  assert.ok(idxPersist < idxEnabled, 'persist must be removed before enabled');
+});
+
+test('#7 setState session removes persist before touching enabled (crash-safe)', () => {
+  const h = tmpHome(); m.setState(h, 'permanent');
+  const order = fsMutationOrder(() => m.setState(h, 'session'));
+  const idxPersist = order.findIndex(([op, p]) => op === 'rm' && p === m.persistPath(h));
+  const idxEnabled = order.findIndex(([op, p]) => op === 'touch' && p === m.enabledPath(h));
+  assert.ok(idxPersist >= 0 && idxEnabled >= 0, 'persist removed and enabled touched');
+  assert.ok(idxPersist < idxEnabled, 'persist must be removed before enabled is touched');
 });
 
 test('hookInstalled reflects hook file presence', () => {

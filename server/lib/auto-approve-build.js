@@ -21,8 +21,13 @@ function readState(home) {
 
 function setState(home, state) {
   fs.mkdirSync(claudeDir(home), { recursive: true });
-  if (state === 'off')            { rm(enabledPath(home)); rm(persistPath(home)); }
-  else if (state === 'session')   { touch(enabledPath(home)); rm(persistPath(home)); }
+  // Crash-safety: for off/session, remove `persist` BEFORE touching/removing `enabled`.
+  // If the process dies between the two fs ops, the worst residual state is enabled-without-
+  // persist (reconcileOnStartup reads that as a stray → clears it → off). The reverse order
+  // could leave persist-without-enabled, which reconcile reads as "permanent" and resurrects
+  // a state the user just disabled.
+  if (state === 'off')            { rm(persistPath(home)); rm(enabledPath(home)); }
+  else if (state === 'session')   { rm(persistPath(home)); touch(enabledPath(home)); }
   else if (state === 'permanent') { touch(enabledPath(home)); touch(persistPath(home)); }
   else throw new Error('invalid state: ' + state);
   return readState(home);
