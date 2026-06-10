@@ -1037,12 +1037,27 @@
       textarea.value = base + finalAdd + interim;
     };
     rec.onerror = (ev) => { pushToast({ title: '語音輸入失敗', msg: ev.error || '辨識錯誤（檢查麥克風權限）' }); };
-    rec.onend = () => { micRec = null; if (micBtnActive) { micBtnActive.classList.remove('recording'); micBtnActive.textContent = '🎤 語音'; micBtnActive = null; } };
+    // onend fires async; guard so a *previous* rec ending can't clobber a freshly-started one
+    // (switching cards calls stopMic()+startMic() back-to-back). Always reset this btn's own
+    // visual; only clear the shared state if it still points at THIS rec/btn.
+    rec.onend = () => {
+      btn.classList.remove('recording'); btn.textContent = '🎤 語音';
+      if (micRec === rec) micRec = null;
+      if (micBtnActive === btn) micBtnActive = null;
+    };
     micRec = rec; micBtnActive = btn;
     btn.classList.add('recording'); btn.textContent = '⏹ 停止';
     try { rec.start(); } catch (e) { rec.onend(); }
   }
-  function stopMic() { if (micRec) { try { micRec.stop(); } catch {} } }
+  // clear shared state SYNCHRONOUSLY so an immediately-following startMic() isn't blocked by
+  // the stale `micRec` (which onend only nulls later) — that was F15's "second card silently
+  // does nothing" bug.
+  function stopMic() {
+    const rec = micRec, btn = micBtnActive;
+    micRec = null; micBtnActive = null;
+    if (btn) { btn.classList.remove('recording'); btn.textContent = '🎤 語音'; }
+    if (rec) { try { rec.stop(); } catch {} }
+  }
 
   // after cards are (re)rendered — reveal mic buttons only where supported
   function revealMicButtons() {
