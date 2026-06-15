@@ -96,6 +96,23 @@
   function chimeCompletion() { playTones([{ f: 783.99, t: 0, d: 0.20 }, { f: 1046.50, t: 0.10, d: 0.22 }], 'sine', 0.10); }
   function chimeFailure()    { playTones([{ f: 329.63, t: 0, d: 0.28 }, { f: 220.00, t: 0.14, d: 0.32 }], 'triangle', 0.16); }
 
+  // F13: play the user-assigned sound for an event, else fall back to the synth chime.
+  function fallbackChime(event) {
+    if (event === 'waiting') chime();
+    else if (event === 'completed') chimeCompletion();
+    else if (event === 'failed') chimeFailure();
+  }
+  function playEventSound(event) {
+    if (!soundOn) return;
+    const name = voiceAssignments[event];
+    if (name) {
+      const audio = new Audio('/uploads/voice/' + encodeURIComponent(name));
+      audio.play().catch(() => fallbackChime(event)); // 404 / decode / autoplay block → fallback
+      return;
+    }
+    fallbackChime(event);
+  }
+
   // ============== Refresh button ==============
   const refreshBtn = $('#refresh-btn');
   let refreshSpinTimer = null;
@@ -873,16 +890,16 @@
           attentionSids.add(s.sid);
         }
         if (next === 'waiting') {
-          chime();
+          playEventSound('waiting');
           pushToast({ title: `${displayName} 等待您決定`, msg: (s.summary?.text || '').slice(0, 140) || '請查看該 session' });
           pushNotif(`${displayName} 等待您決定`, (s.summary?.text || '').slice(0, 140));
         } else if (next === 'completed' && prev === 'running') {
-          chimeCompletion();
+          playEventSound('completed');
           briefFlash(3, 'completed');
           pushToast({ title: `${displayName} 完成`, msg: (s.summary?.text || '').slice(0, 140) || '可下達下一個指令' });
           pushNotif(`${displayName} 完成`, (s.summary?.text || '').slice(0, 140));
         } else if (next === 'failed') {
-          chimeFailure();
+          playEventSound('failed');
           briefFlash(5, 'failed');
           pushToast({ title: `${displayName} 失敗`, msg: s.lastError || '查看詳情' });
           pushNotif(`${displayName} 失敗`, s.lastError || '');
@@ -1451,6 +1468,12 @@
   fetch('/api/fs/list').then((r) => r.json()).then((d) => {
     if (d && d.home) localStorage.setItem('fs.home', d.home);
     if (d && d.drives && d.drives.length) localStorage.setItem('fs.drives', JSON.stringify(d.drives));
+  }).catch(() => {});
+
+  // F13: pull assignments on load so event sounds use custom files before the modal is ever opened.
+  fetch('/api/voice/list').then((r) => r.json()).then((d) => {
+    voiceFiles = d.files || [];
+    voiceAssignments = d.assignments || {};
   }).catch(() => {});
 
   $('#new-session-btn').addEventListener('click', () => {
