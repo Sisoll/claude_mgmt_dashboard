@@ -64,3 +64,23 @@ test('guard: mvn -o -Dtest flag still allowed', () => { assert.ok(isAllow(runHoo
 test('guard: jest --coverage still allowed', () => { assert.ok(isAllow(runHook('jest --coverage'))); });
 test('guard: go build ./... still allowed', () => { assert.ok(isAllow(runHook('go build ./...'))); });
 test('guard: mvn test | grep -i error (stdin filter) still allowed', () => { assert.ok(isAllow(runHook('mvn test | grep -i error'))); });
+
+// ── code-review follow-up (handoff 2026-06-10): #11 / #12 / #13 ─────────────
+// #11 ./mvnw (Maven wrapper) must be whitelisted like `mvn` — Spring Boot repos
+//     ship ./mvnw and were always deferred (is_main only had mvn / ./gradlew).
+test('#11 ./mvnw test → allow', () => { assert.ok(isAllow(runHook('./mvnw test'))); });
+test('#11 ./mvnw -o -Dtest=FooTest test → allow', () => { assert.ok(isAllow(runHook('./mvnw -o -Dtest=FooTest test'))); });
+
+// #12 a `-cp` (or any `-…cp`) flag must NOT trip the destructive `cp` denylist —
+//     the deny boundary treated `-` as a word boundary, so `-cp` matched `cp`.
+test('#12 mvn -DargLine=-cp test → allow (cp is a flag, not the cp command)', () => { assert.ok(isAllow(runHook('mvn -DargLine=-cp test'))); });
+// guard: a real `cp` command (start / space / ; / | boundary) is still denied.
+test('#12 guard: cp a b → deny', () => { assert.strictEqual(runHook('cp a b'), ''); });
+test('#12 guard: mvn test | cp a b → deny', () => { assert.strictEqual(runHook('mvn test | cp a b'), ''); });
+
+// #13 a `;` or `|` INSIDE quotes is a literal arg, not a separator — the tr-based
+//     splitter used to break `-Dtest='Foo;Bar'` and wrongly defer it.
+test("#13 mvn -o -Dtest='Foo;Bar' test → allow (quoted ; not a separator)", () => { assert.ok(isAllow(runHook("mvn -o -Dtest='Foo;Bar' test"))); });
+test("#13 mvn test | grep 'a|b' → allow (quoted | not a separator)", () => { assert.ok(isAllow(runHook("mvn test | grep 'a|b'"))); });
+// guard: an UNQUOTED ; still splits and validates each segment.
+test('#13 guard: mvn test ; rm x → deny (unquoted ; still splits)', () => { assert.strictEqual(runHook('mvn test ; rm x'), ''); });

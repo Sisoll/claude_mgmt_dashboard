@@ -360,7 +360,9 @@ const server = http.createServer((req, res) => {
       try {
         const now = aab.setState(undefined, state);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ ok: true, state: now }));
+        // Return hookInstalled too so the client can render from this response
+        // alone — no follow-up GET (whose failure would falsely report "設定失敗").
+        res.end(JSON.stringify({ ok: true, state: now, hookInstalled: aab.hookInstalled() }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ error: e.message }));

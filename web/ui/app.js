@@ -248,8 +248,9 @@
       });
       const d = await r.json();
       if (!r.ok) { pushToast({ title: '設定失敗', msg: d.error || '' }); return; }
-      const hook = await (await fetch('/api/auto-approve-build')).json();
-      renderAab(hook);
+      // Render from the POST response directly — no second GET (a failing GET
+      // after a successful POST used to throw → false "設定失敗" toast).
+      renderAab({ hookInstalled: d.hookInstalled, state: d.state });
       if (state === 'permanent') pushToast({ title: '自動核准：永久', msg: 'build/test/install 跨重啟自動核准（可隨時關）' });
       else if (state === 'session') pushToast({ title: '自動核准：本次', msg: '關 dashboard 後自動失效' });
     } catch (err) { pushToast({ title: '設定失敗', msg: err.message }); }
