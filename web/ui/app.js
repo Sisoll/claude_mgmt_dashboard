@@ -65,7 +65,7 @@
 
   // ============== Audio chime ==============
   let audioCtx = null;
-  let soundOn = true;
+  let soundOn = (localStorage.getItem('soundOn') ?? 'true') === 'true';
   let notifyOn = (localStorage.getItem('notifyOn') ?? 'true') === 'true';
   function ensureCtx() {
     if (!audioCtx) {
@@ -163,10 +163,16 @@
     });
   });
 
-  $('#sound-toggle').addEventListener('click', (e) => {
+  const soundToggleBtn = $('#sound-toggle');
+  function applySoundToggleStyle() {
+    soundToggleBtn.style.color = soundOn ? '' : 'var(--text-faint)';
+    soundToggleBtn.style.background = soundOn ? '' : 'var(--surface-2)';
+  }
+  applySoundToggleStyle(); // reflect persisted state on load
+  soundToggleBtn.addEventListener('click', () => {
     soundOn = !soundOn;
-    e.currentTarget.style.color = soundOn ? '' : 'var(--text-faint)';
-    e.currentTarget.style.background = soundOn ? '' : 'var(--surface-2)';
+    localStorage.setItem('soundOn', soundOn ? 'true' : 'false');
+    applySoundToggleStyle();
     if (soundOn) chime();
   });
 
