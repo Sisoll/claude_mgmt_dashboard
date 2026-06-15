@@ -39,3 +39,6 @@ desktop.ini
 # Debug / scratch
 .tmp-*
 *.tmp.json
+
+# Uploaded media (voice sounds, future F14 pictures, …)
+/uploads/
