@@ -176,6 +176,19 @@
     if (soundOn) chime();
   });
 
+  // ============== F13: sound settings modal (open/close) ==============
+  const soundModal = $('#sound-modal');
+  $('#sound-settings-btn').addEventListener('click', () => {
+    soundModal.classList.remove('hidden');
+    loadVoiceLib();
+  });
+  $('#sound-close').addEventListener('click', () => soundModal.classList.add('hidden'));
+  soundModal.addEventListener('click', (e) => {
+    if (e.target === soundModal) soundModal.classList.add('hidden'); // backdrop click
+  });
+  // Stub — replaced by the voice-library task. Keeps the open handler safe until then.
+  function loadVoiceLib() {}
+
   // ============== Notification permission ==============
   const banner = $('#perm-banner');
   if (!('Notification' in window) || Notification.permission !== 'default') {

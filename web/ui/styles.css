@@ -1333,3 +1333,23 @@
   .fs-open-btn { background: var(--accent); color: #fff; border: 1px solid var(--accent-deep); border-radius: var(--radius-sm); padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; flex: 0 0 auto; }
   .fs-open-btn:hover:not(:disabled) { background: var(--accent-deep); }
   .fs-open-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* F13: sound settings modal */
+.sound-modal { position: fixed; inset: 0; background: rgba(26, 24, 21, .45); display: flex; align-items: center; justify-content: center; z-index: 60; }
+.sound-modal.hidden { display: none; }
+.sound-modal-card { width: 420px; max-width: calc(100vw - 40px); max-height: 80vh; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, .25); }
+.sound-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.sound-modal-title { font-weight: 600; color: var(--text); }
+.sound-body { padding: 14px 16px 18px; }
+.sound-section-title { font-size: 12px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 8px; }
+.sound-lib { display: flex; flex-direction: column; gap: 6px; }
+.sound-lib-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--surface-2); border-radius: 8px; }
+.sound-lib-row .name { flex: 1; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sound-lib-row button { cursor: pointer; background: none; border: none; color: var(--text-muted); font-size: 14px; padding: 2px 4px; }
+.sound-lib-row button:hover { color: var(--text); }
+.sound-lib-empty { font-size: 12.5px; color: var(--text-faint); padding: 6px 2px; }
+.sound-upload-btn { display: inline-block; cursor: pointer; font-size: 12.5px; color: var(--accent); padding: 8px 0 2px; }
+.sound-assign-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; }
+.sound-assign-row span { font-size: 13px; color: var(--text); }
+.sound-assign { font-family: inherit; font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); max-width: 220px; }
+.sound-close { cursor: pointer; }
