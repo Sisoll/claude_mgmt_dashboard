@@ -253,8 +253,35 @@
     } catch (err) { pushToast({ title: '上傳失敗', msg: err.message }); }
   });
 
-  // Stub — replaced by the assignment-selects task.
-  function renderVoiceAssigns() {}
+  // ============== F13: event assignment selects ==============
+  function renderVoiceAssigns() {
+    $$('.sound-assign').forEach((sel) => {
+      const event = sel.dataset.event;
+      const current = voiceAssignments[event] || '';
+      let html = '<option value="">（預設合成音）</option>';
+      for (const f of voiceFiles) {
+        const selected = f.name === current ? ' selected' : '';
+        html += `<option value="${escapeHtml(f.name)}"${selected}>${escapeHtml(f.name)}</option>`;
+      }
+      sel.innerHTML = html;
+    });
+  }
+
+  $$('.sound-assign').forEach((sel) => {
+    sel.addEventListener('change', async () => {
+      const event = sel.dataset.event;
+      const name = sel.value || null;
+      try {
+        const res = await fetch('/api/voice/assign', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event, name }),
+        });
+        const data = await res.json();
+        if (!res.ok) { pushToast({ title: '指派失敗', msg: data.error || '' }); return; }
+        voiceAssignments = data.assignments || {};
+      } catch (err) { pushToast({ title: '指派失敗', msg: err.message }); }
+    });
+  });
 
   // ============== Notification permission ==============
   const banner = $('#perm-banner');
