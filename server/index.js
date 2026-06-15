@@ -12,6 +12,14 @@ const { flashWindowForPid, focusWindowForPid, sendPromptToPid } = require('./lib
 const { getQuotas, readCtxRemainForSession, ctxRemainPctFromTokens } = require('./lib/usage');
 const { listDir } = require('./lib/fslist');
 const aab = require('./lib/auto-approve-build');
+const { makeUploadStore } = require('./lib/uploads');
+const VOICE_MAX_BYTES = 2 * 1024 * 1024;
+const voiceStore = makeUploadStore({
+  subdir: 'voice',
+  allowExt: ['mp3', 'wav', 'ogg'],
+  maxBytes: VOICE_MAX_BYTES,
+  events: ['waiting', 'completed', 'failed'],
+});
 
 const PORT = Number(process.env.PORT || 7878);
 const HOST = '127.0.0.1';
@@ -368,6 +376,99 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: e.message }));
       }
     });
+    return;
+  }
+
+  // ============== F13: custom notification sounds (voice) ==============
+  if (req.method === 'GET' && url.pathname === '/api/voice/list') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ files: voiceStore.list(), assignments: voiceStore.readAssignments() }));
+    return;
+  }
+
+  // Raw-body upload (no multipart dep). Filename in ?name=. Bail early on oversize.
+  if (req.method === 'POST' && url.pathname === '/api/voice/upload') {
+    const name = url.searchParams.get('name') || '';
+    const chunks = [];
+    let size = 0, aborted = false;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > VOICE_MAX_BYTES) {
+        aborted = true;
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'file too large' }));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      if (aborted) return;
+      try {
+        const file = voiceStore.save(name, Buffer.concat(chunks));
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: true, file }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/voice/delete') {
+    let body = '';
+    req.on('data', (c) => { body += c.toString(); });
+    req.on('end', () => {
+      try {
+        const reqName = String(JSON.parse(body || '{}').name || '');
+        voiceStore.remove(reqName); // also clears any assignment pointing at it
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: true, assignments: voiceStore.readAssignments() }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/voice/assign') {
+    let body = '';
+    req.on('data', (c) => { body += c.toString(); });
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body || '{}');
+        const event = String(b.event || '');
+        const name = b.name == null ? null : String(b.name);
+        const assignments = voiceStore.assign(event, name);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: true, assignments }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // Serve uploaded audio for <audio> playback. filePath() validates name + ext and
+  // rejects path separators, neutralizing traversal (mirrors the /ui/ guard intent).
+  if (req.method === 'GET' && url.pathname.startsWith('/uploads/voice/')) {
+    const name = decodeURIComponent(url.pathname.slice('/uploads/voice/'.length));
+    let fp;
+    try { fp = voiceStore.filePath(name); }
+    catch { res.writeHead(403); res.end('forbidden'); return; }
+    try {
+      const body = fs.readFileSync(fp);
+      const ext = path.extname(fp).toLowerCase();
+      const type = ext === '.mp3' ? 'audio/mpeg' : ext === '.wav' ? 'audio/wav'
+        : ext === '.ogg' ? 'audio/ogg' : 'application/octet-stream';
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });
+      res.end(body);
+    } catch (err) {
+      res.writeHead(404); res.end('sound not found');
+    }
     return;
   }
 
