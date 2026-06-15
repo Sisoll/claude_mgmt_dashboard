@@ -186,8 +186,75 @@
   soundModal.addEventListener('click', (e) => {
     if (e.target === soundModal) soundModal.classList.add('hidden'); // backdrop click
   });
-  // Stub — replaced by the voice-library task. Keeps the open handler safe until then.
-  function loadVoiceLib() {}
+  // ============== F13: voice library state + rendering ==============
+  let voiceAssignments = {}; // { waiting, completed, failed } -> filename | null
+  let voiceFiles = [];       // [{ name, size, mtime }]
+  const VOICE_MAX_BYTES_FE = 2 * 1024 * 1024;
+  const VOICE_EXT = ['mp3', 'wav', 'ogg'];
+
+  async function loadVoiceLib() {
+    try {
+      const res = await fetch('/api/voice/list');
+      const data = await res.json();
+      voiceFiles = data.files || [];
+      voiceAssignments = data.assignments || {};
+    } catch { voiceFiles = []; voiceAssignments = {}; }
+    renderVoiceLib();
+    renderVoiceAssigns();
+  }
+
+  function renderVoiceLib() {
+    const lib = $('#sound-lib');
+    if (!lib) return;
+    if (!voiceFiles.length) { lib.innerHTML = '<div class="sound-lib-empty">（音庫是空的，先上傳一個音檔）</div>'; return; }
+    lib.innerHTML = '';
+    for (const f of voiceFiles) {
+      const row = document.createElement('div');
+      row.className = 'sound-lib-row';
+      row.innerHTML = `<span class="name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>`
+        + `<button class="vplay" title="試聽">▶</button>`
+        + `<button class="vdel" title="刪除">🗑</button>`;
+      row.querySelector('.vplay').onclick = () => {
+        new Audio('/uploads/voice/' + encodeURIComponent(f.name)).play().catch(() => {});
+      };
+      row.querySelector('.vdel').onclick = () => deleteVoice(f.name);
+      lib.appendChild(row);
+    }
+  }
+
+  async function deleteVoice(name) {
+    try {
+      const res = await fetch('/api/voice/delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) { pushToast({ title: '刪除失敗', msg: data.error || '' }); return; }
+      voiceAssignments = data.assignments || {};
+      await loadVoiceLib();
+    } catch (err) { pushToast({ title: '刪除失敗', msg: err.message }); }
+  }
+
+  $('#sound-upload').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // allow re-selecting same file later
+    if (!file) return;
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!VOICE_EXT.includes(ext)) { pushToast({ title: '格式不支援', msg: '只接受 mp3 / wav / ogg' }); return; }
+    if (file.size > VOICE_MAX_BYTES_FE) { pushToast({ title: '檔案太大', msg: '單檔上限 2 MB' }); return; }
+    try {
+      const res = await fetch('/api/voice/upload?name=' + encodeURIComponent(file.name), {
+        method: 'POST', body: file, // raw body
+      });
+      const data = await res.json();
+      if (!res.ok) { pushToast({ title: '上傳失敗', msg: data.error || '' }); return; }
+      await loadVoiceLib();
+      pushToast({ title: '已上傳', msg: file.name });
+    } catch (err) { pushToast({ title: '上傳失敗', msg: err.message }); }
+  });
+
+  // Stub — replaced by the assignment-selects task.
+  function renderVoiceAssigns() {}
 
   // ============== Notification permission ==============
   const banner = $('#perm-banner');
