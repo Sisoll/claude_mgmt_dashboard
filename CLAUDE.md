@@ -94,7 +94,7 @@ JSONL contains Claude Code's internal wrappers (`<command-name>`, `<local-comman
 - **Dashboard UI is modular but still no-build**: `web/dashboard.html` (markup shell) + `web/ui/styles.css` + `web/ui/app.js` (native ES module via `<script type="module">`). No bundler, no framework, no transpilation — the Node server serves `/ui/*` directly (`Cache-Control: no-store`). UI was hand-designed (warm cream + terracotta); don't restructure styles or layout without explicit ask. `app.js` is currently one module (the original IIFE moved out verbatim); finer splitting into ws/render/status/host/… is a planned follow-up — see `docs/PLAN-v1.0.0-tauri.md` §M0.5.
 - **All file paths assume `~/.claude/...`** — use `os.homedir()`, not env hacks.
 - **Windows-only**. Don't add cross-platform shims for the PowerShell helpers; future port target is Rust via `windows-rs`, not POSIX.
-- **No git remote**: this repo is not a git repository (no `.git`). The global session-startup git-fetch flow does not apply here.
+- **Git**: this IS a git repository with an `origin` remote (`https://github.com/Sisoll/claude_mgmt_dashboard.git`); `main` tracks `origin/main`. The user's global session-startup git-sync flow (fetch + ff-only pull, warn on divergence) **applies here**. Version bumps, changelog, tags, and pushes go through the `release` skill — don't manually commit/push/tag unless asked.
 
 ## Status tag protocol (reply termination)
 

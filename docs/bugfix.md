@@ -2,6 +2,10 @@
 
 > 已修的 bug，**最新在上**。每條可直接當 commit message 用。
 
+- #11 auto-approve-build hook：`./mvnw`（Maven wrapper）未在主指令白名單 → 補上，讓 `./mvnw …` 被自動核准 (`hooks/auto-approve-build.sh`)
+- #12 auto-approve-build hook：`-cp` / `-classpath` 旗標值被誤判為路徑參數而 deny → 修正誤擋 (`hooks/auto-approve-build.sh`)
+- #13 auto-approve-build hook：指令分段未考慮引號 → 引號內的 `;` / `|` 被誤當命令分隔 → 改 quote-aware 分段；+8 回歸測試 (`hooks/auto-approve-build.sh`, `server/test/hook-auto-approve-build.test.js`)
+- #9 auto-approve-build API：`POST /api/auto-approve-build` 回傳補 `hookInstalled`，FE `setAab` 移除設定後多餘的第二次 GET（省一次 round-trip）(`server/index.js`, `web/ui/app.js`)
 - F16 hook 安全強化（發版前 code review）：① deny 補 `<` → 擋 input-redirect 與 process-substitution `<(...)`；② 無害尾管只允許純 stdin 過濾（grep/head/tail/wc/echo）並擋路徑參數／遞迴旗標 → 擋 `| cat ~/.ssh/id_rsa`、`| grep -r secret`；③ 移除裸 `yarn` 分支 → 擋 `yarn exec/dlx/add`；④ deny 補 inline URL 與絕對／家目錄／上層路徑參數 → 擋 `jest --globalSetup=/tmp/evil.js`、`pytest /abs`、`make -f`、`npm --registry http://evil`；標註「便利非安全邊界」+21 條回歸測試 (`hooks/auto-approve-build.sh`, `server/test/hook-auto-approve-build.test.js`)
 - F16 旗標 crash 序：`setState('off'/'session')` 先刪 enabled 後刪 persist → 兩步間崩潰留 persist 殘留 → `reconcileOnStartup` 復活「永久」（使用者已關卻復活）。改成先刪 persist 再動 enabled（crash-safe 退回 off）+ 順序回歸測試 (`server/lib/auto-approve-build.js`, `server/test/auto-approve-build.test.js`)
 - F16 `install-hooks.ps1` 寫 `settings.json` 帶 UTF-8 BOM → 無效 JSON：改無 BOM 寫法 (`install-hooks.ps1`)

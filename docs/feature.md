@@ -2,6 +2,7 @@
 
 > 已完成的功能 / 改善，**最新在上**。每條可直接當 commit message 用。
 
+- F13 自訂通知鈴聲（可上傳音檔）：topbar 🔔「鈴聲設定」modal（仿 `fs-modal`）；音庫（上傳／預覽／刪除 mp3·wav·ogg，≤2 MB，raw-body POST、無 multipart 依賴，存 repo 根 `uploads/voice/`）；三事件（等待您決定／完成／失敗）各指派一個音檔，未指派則 fallback 回原合成音；指派持久化 server `assignments.json`，播放走 `<audio>`+server URL；`soundOn` 存 localStorage（與 notifyOn 對等）。後端抽泛型 `makeUploadStore` 工廠（list/upload/delete/assign/檔案服務共通）+ 單元測試 8/8 (`server/lib/uploads.js`, `server/index.js`, `web/ui/app.js`, `web/dashboard.html`, `web/ui/styles.css`, `server/test/uploads.test.js`)
 - F21 topbar「新 session」：雙欄資料夾 picker（瀏覽 + 記住上次 + noise/archive 過濾）→ 選 PowerShell/Bash → 在該目錄開新終端並自動跑 `claude`；server 用 `fsutil fsinfo drives` 快速列碟 + 預設落在 server drive root，Bash 走 `git-bash.exe --cd=<dir> -c "claude; exec bash"`、PS 走 `wt … powershell -NoExit -Command claude` (`server/lib/fslist.js`, `server/index.js`, `web/ui/app.js`, `web/dashboard.html`, `web/ui/styles.css`)
 - F16 自動核准「編譯/測試/安裝」開關（**預設關**）：獨立 PreToolUse hook `hooks/auto-approve-build.sh`（旗標 gate + 硬 deny + 主指令白名單 + 無害尾管 + audit log），3-state 旗標機（off/session/permanent）+ `/api/auto-approve-build` + 啟動 reconcile／關閉 clear；FE toggle + 永久 checkbox + 能力 gate（沒裝 hook 變灰）；`install-hooks.ps1` 一鍵裝 hook + 註冊 `settings.json` (`hooks/auto-approve-build.sh`, `server/lib/auto-approve-build.js`, `server/index.js`, `web/ui/app.js`, `install-hooks.ps1`)
 - F15 送 prompt 語音輸入：send-prompt textarea 旁加 🎤 鈕，Web Speech API（`webkitSpeechRecognition`, zh-TW, `interimResults` 即時上字）填入 textarea，沿用「不自動 Enter、使用者檢查後送出」 (`web/ui/app.js`, `web/dashboard.html`)

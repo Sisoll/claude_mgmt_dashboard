@@ -2,6 +2,16 @@
 
 Release notes（標題為主）。最新在上。
 
+## v0.2.3
+### Features — 提醒客製化（鈴聲）
+- F13 自訂通知鈴聲：可上傳 mp3/wav/ogg 音庫（≤2 MB）、三事件（等待您決定/完成/失敗）各指派音檔、未指派 fallback 回合成音；soundOn 持久化 localStorage；後端泛型 makeUploadStore + 單元測試
+
+### Fixes — auto-approve-build hook + API
+- #11 `./mvnw` 補進主指令白名單；#12 `-cp`/`-classpath` 旗標誤擋修正；#13 引號感知（quote-aware）的 `;`/`|` 分段（+8 回歸測試）
+- #9 `/api/auto-approve-build` 回傳補 hookInstalled + FE setAab 移除多餘第二次 GET
+
+> 註：F14（orbit icon）原排本版，已延後、版本待定。
+
 ## v0.2.2
 ### Features — 互動 / 操作
 - F15 送 prompt 語音輸入（Web Speech API, zh-TW，填入後自行檢查送出）
